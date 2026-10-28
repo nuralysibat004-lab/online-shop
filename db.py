@@ -6,13 +6,12 @@ from Exceptions import WrongItemException
 class BotDB:
     actual_id = int()
     
-        def __init__(self, db_file):
+            def __init__(self, db_file):
         # Инициализация соединения с БД
         clean_path = db_file.replace("sqlite+aiosqlite:///", "").replace("sqlite:///", "")
         self.conn = sqlite3.connect(clean_path)
         self.cursor = self.conn.cursor()
         
-        # --- АВТОМАТИЧЕСКОЕ СОЗДАНИЕ ТАБЛИЦ ---
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS Users (
                 Telegram_id INTEGER PRIMARY KEY,
@@ -62,7 +61,7 @@ class BotDB:
         ''')
         
         self.conn.commit()
-        # -------------------------------------
+                
 
 
     
