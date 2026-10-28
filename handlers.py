@@ -599,7 +599,7 @@ async def support_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 @rt.message(user_states.waiting_for_support)
-async def process_support_message(message: Message, state: FSMContext, bot):
+ def process_support_message(message: Message, state: FSMContext, bot):
     user_id = message.from_user.id
     user_name = message.from_user.first_name
     username = message.from_user.username or "нет юзернейма"
@@ -616,5 +616,24 @@ async def process_support_message(message: Message, state: FSMContext, bot):
         
         await bot.send_message(admin_id, admin_text, parse_mode="HTML")
     
+    await message.answer("✅ Ваше сообщение успешно отправлено в поддержку! Ожидайте ответа.")
+    await state.clear()
+     @rt.message(user_states.waiting_for_support)
+async def process_support_message(message: Message, state: FSMContext, bot):
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name
+    username = message.from_user.username or "нет юзернейма"
+    
+    # Впиши свой ID цифрами вместо ТВОЙ_АДМИНСКИЙ_ID
+    admin_id = 7461353872
+    
+    admin_text = (
+        f"📩 <b>Новое обращение в поддержку!</b>\n\n"
+        f"👤 От: {user_name} (@{username})\n"
+        f"🆔 ID: <code>{user_id}</code>\n\n"
+        f"💬 <b>Сообщение:</b>\n{message.text}"
+    )
+    
+    await bot.send_message(admin_id, admin_text, parse_mode="HTML")
     await message.answer("✅ Ваше сообщение успешно отправлено в поддержку! Ожидайте ответа.")
     await state.clear()
