@@ -1,8 +1,8 @@
 from aiogram import F, Router, types
 from aiogram.filters import Command
 from aiogram.types import Message, CallbackQuery, InputFile
-import kb
-import text
+# import kb
+# import text
 import csv
 from db import BotDB
 import aiofiles
