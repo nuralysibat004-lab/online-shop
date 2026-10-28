@@ -33,32 +33,18 @@ def hash_password(password):
 
 
 @rt.message(Command("start"))
-async def start_handler(msg: Message, state:FSMContext):
-    user_id = msg.from_user.id
-    name= msg.from_user.full_name
-    # bot_db = BotDB(DATABASE)
-    if bot_db.is_user_in_db(user_id):
-
-        user_role = bot_db.get_role(user_id)
-        
-        if user_role == ('Seller',):
-            await msg.answer(text = f"Вы авторизованы как продавец. С возвращением, {name}", reply_markup= kb.seller_role_menu)
-        
-        elif user_role == ('Customer',):
-            await msg.answer(text = f"Вы авторизованы как покупатель. С возвращением, {name}", reply_markup=kb.customer_role_menu)
-        
-        elif user_role == ('Administrator',):
-            await msg.answer(text = f"Вы авторизованы как администратор. С возвращением, {name}", reply_markup=kb.admin_role_menu)
-        elif user_role == (None,):
-            await msg.answer(text = f"Пожалуйста, выберите роль.", reply_markup= kb.select_role_menu)
-              
-
-    else:
-        bot_db.create_new_user(user_id)
-        await msg.answer(text = f"Кажется, вы у нас впервые. Пожалуйста, выберите роль.", reply_markup= kb.select_role_menu)
-
-
-@rt.callback_query(F.data.in_(["user_is_seller","user_is_customer"]))
+async def start_handler(message: Message, state: FSMContext):
+  await state.clear()
+  user_name = message.from_user.first_name
+  text = (
+      f"👋 Салам алейкум, <b>{user_name}</b>! Ты попал в <b>GumStars</b> — бот"
+      " по продаже криптовалюты, NFT и звёзд 🌟\n\n💎 Быстро, безопасно и по"
+      " выгодному курсу.\nВыберите нужный раздел в меню ниже 👇"
+  )
+  await message.answer(
+      text, reply_markup=get_main_keyboard(), parse_mode="HTML"
+  )
+    @rt.callback_query(F.data.in_(["user_is_seller","user_is_customer"]))
 async def add_role(query: types.CallbackQuery, state: FSMContext):
     user_id = query.from_user.id
     # bot_db = BotDB(DATABASE)
