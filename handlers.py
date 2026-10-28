@@ -364,3 +364,250 @@ async def process_admin_login(message: Message, state: FSMContext):
 async def go_back(query: types.CallbackQuery):
     await query.message.delete()
     await query.message.answer("Вы в главном меню.", reply_markup=kb.customer_role_menu)
+    # Функция главного меню (чтобы легко возвращаться назад)
+def get_main_keyboard():
+  return InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(text="🪙 Крипта", callback_data="crypto"),
+              InlineKeyboardButton(text="⭐ Звёзды", callback_data="stars"),
+          ],
+          [
+              InlineKeyboardButton(
+                  text="🛒 Купить NFT", callback_data="buy_nft"
+              ),
+              InlineKeyboardButton(
+                  text="🔑 Аренда NFT", callback_data="rent_nft"
+              ),
+          ],
+          [
+              InlineKeyboardButton(
+                  text="📦 Мои заказы", callback_data="my_orders"
+              ),
+              InlineKeyboardButton(text="👤 Профиль", callback_data="profile"),
+          ],
+          [
+              InlineKeyboardButton(
+                  text="💬 Отзывы", url="https://t.me/твоя_ссылка_на_отзывы"
+              ),
+              InlineKeyboardButton(text="👥 Рефералы", callback_data="ref"),
+          ],
+          [InlineKeyboardButton(text="🆘 Поддержка", callback_data="support")],
+          [InlineKeyboardButton(text="🎟 Промокод", callback_data="promocode")],
+      ]
+  )
+
+
+# Кнопка возврата в меню
+def back_keyboard():
+  return InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+      ]
+  )
+
+
+@rt.message(F.text == "/start")
+async def start_handler(message: Message):
+  user_name = message.from_user.first_name
+  text = (
+      f"👋 Салам алейкум, <b>{user_name}</b>! Ты попал в <b>GumStars</b> — бот"
+      " по продаже криптовалюты, NFT и звёзд 🌟\n\n💎 Быстро, безопасно и по"
+      " выгодному курсу.\nВыберите нужный раздел в меню ниже 👇"
+  )
+  await message.answer(
+      text, reply_markup=get_main_keyboard(), parse_mode="HTML"
+  )
+
+
+# Возврат в главное меню по инлайн-кнопке
+@rt.callback_query(F.data == "back_to_menu")
+async def back_to_menu_callback(callback: CallbackQuery):
+  user_name = callback.from_user.first_name
+  text = (
+      f"👋 Салам алейкум, <b>{user_name}</b>! Ты попал в <b>GumStars</b> — бот"
+      " по продаже криптовалюты, NFT и звёзд 🌟\n\n💎 Быстро, безопасно и по"
+      " выгодному курсу.\nВыберите нужный раздел в меню ниже 👇"
+  )
+  await callback.message.edit_text(
+      text, reply_markup=get_main_keyboard(), parse_mode="HTML"
+  )
+
+
+# Раздел: Крипта
+@rt.callback_query(F.data == "crypto")
+async def crypto_menu(callback: CallbackQuery):
+  keyboard = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(
+                  text="TON - 125.19 ₽", callback_data="buy_ton"
+              ),
+              InlineKeyboardButton(
+                  text="BTC - 8 155 997.50 ₽", callback_data="buy_btc"
+              ),
+          ],
+          [
+              InlineKeyboardButton(
+                  text="USDT - 100.57 ₽", callback_data="buy_usdt"
+              ),
+              InlineKeyboardButton(
+                  text="SOL - 10 269.02 ₽", callback_data="buy_sol"
+              ),
+          ],
+          [
+              InlineKeyboardButton(
+                  text="✏️ Указать свою монету", callback_data="custom_crypto"
+              )
+          ],
+          [
+              InlineKeyboardButton(
+                  text="◀️ Назад в меню", callback_data="back_to_menu"
+              )
+          ],
+      ]
+  )
+  text = "🪙 <b>Криптовалюта</b>\n\nОплата в рублях (₽).\nВыберите монету для покупки:"
+  await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+
+
+# Раздел: Звёзды
+@rt.callback_query(F.data == "stars")
+async def stars_menu(callback: CallbackQuery):
+  keyboard = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(
+                  text="50 🌟 (75.00 ₽)", callback_data="star_50"
+              ),
+              InlineKeyboardButton(
+                  text="100 🌟 (150.00 ₽)", callback_data="star_100"
+              ),
+          ],
+          [
+              InlineKeyboardButton(
+                  text="250 🌟 (375.00 ₽)", callback_data="star_250"
+              ),
+              InlineKeyboardButton(
+                  text="500 🌟 (750.00 ₽)", callback_data="star_500"
+              ),
+          ],
+          [
+              InlineKeyboardButton(
+                  text="⚙️ Указать свое количество",
+                  callback_data="custom_stars",
+              )
+          ],
+          [
+              InlineKeyboardButton(
+                  text="◀️ Назад в меню", callback_data="back_to_menu"
+              )
+          ],
+      ]
+  )
+  text = "⭐ <b>Покупка Telegram-звёзд</b>\n\nЦена: 1.50 ₽ за 1 звезду.\nВыберите количество звёзд:"
+  await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+
+
+# Раздел: Купить NFT
+@rt.callback_query(F.data == "buy_nft")
+async def buy_nft_menu(callback: CallbackQuery):
+  text = "🛒 <b>Покупка NFT</b>\n\nВ данный раздел скоро будут добавлены доступные NFT для покупки."
+  await callback.message.edit_text(
+      text, reply_markup=back_keyboard(), parse_mode="HTML"
+  )
+
+
+# Раздел: Аренда NFT
+@rt.callback_query(F.data == "rent_nft")
+async def rent_nft_menu(callback: CallbackQuery):
+  text = "🔑 <b>Аренда NFT</b>\n\nВ данный раздел скоро будут добавлены NFT для аренды."
+  await callback.message.edit_text(
+      text, reply_markup=back_keyboard(), parse_mode="HTML"
+  )
+
+
+# Раздел: Профиль
+@rt.callback_query(F.data == "profile")
+async def profile_menu(callback: CallbackQuery):
+  user_id = callback.from_user.id
+  user_name = callback.from_user.first_name
+  text = (
+      f"👤 <b>ПРОФИЛЬ</b>\n\n"
+      f"👤 Имя: {user_name}\n"
+      f"🆔 ID: <code>{user_id}</code>\n\n"
+      "⭐ Куплено звёзд: 0\n"
+      "📦 Заказов: 0\n"
+      "💳 Сумма покупок: 0.00 ₽\n\n"
+      "📦 <b>История покупок:</b>\n"
+      "Покупок пока нет — оформите первую!"
+  )
+  keyboard = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(
+                  text="👥 Реферальная система", callback_data="ref"
+              )
+          ],
+          [
+              InlineKeyboardButton(
+                  text="◀️ Назад в меню", callback_data="back_to_menu"
+              )
+          ],
+      ]
+  )
+  await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+
+
+# Раздел: Рефералы
+@rt.callback_query(F.data == "ref")
+async def ref_menu(callback: CallbackQuery):
+  user_id = callback.from_user.id
+  text = (
+      f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
+      "Приглашайте друзей — получите 50 🌟 по персональному промокоду!\n\n"
+      f"🔗 <b>Ваша ссылка:</b>\n<code>https://t.me/gumstars09_bot?start=ref{user_id}</code>\n\n"
+      "👥 Перешло по ссылке: 0\n"
+      "⭐ Купили на от 500 ₽: 0\n\n"
+      "Пригласите друга, который купит на сумму от 500 ₽ — и получите промокод на 50 🌟."
+  )
+  await callback.message.edit_text(
+      text, reply_markup=back_keyboard(), parse_mode="HTML"
+  )
+
+
+# Раздел: Поддержка
+@rt.callback_query(F.data == "support")
+async def support_menu(callback: CallbackQuery):
+  text = (
+      "🆘 <b>Поддержка</b>\n\n"
+      "Опишите вашу проблему или вопрос — мы постараемся ответить как можно скорее.\n\n"
+      "📎 При необходимости приложите фото или файл.\n\n"
+      "Напишите сообщение прямо сейчас 👇"
+  )
+  await callback.message.edit_text(
+      text, reply_markup=back_keyboard(), parse_mode="HTML"
+  )
+
+
+# Раздел: Промокод
+@rt.callback_query(F.data == "promocode")
+async def promo_menu(callback: CallbackQuery):
+  text = (
+      "🎟 <b>ПРОМОКОДЫ</b>\n\n"
+      "Введите промокод текстом, чтобы получить 🌟 звёзды 👇\n\n"
+      "Кодов пока нет — введите первый!"
+  )
+  await callback.message.edit_text(
+      text, reply_markup=back_keyboard(), parse_mode="HTML"
+  )
+
+
+# Раздел: Мои заказы
+@rt.callback_query(F.data == "my_orders")
+async def orders_menu(callback: CallbackQuery):
+  text = "📦 <b>Мои заказы</b>\n\nУ вас пока нет активных или завершенных заказов."
+  await callback.message.edit_text(
+      text, reply_markup=back_keyboard(), parse_mode="HTML"
+)
+                     
