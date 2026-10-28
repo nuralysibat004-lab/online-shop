@@ -8,7 +8,10 @@ class BotDB:
     
     def __init__(self, db_file):
         #Инициализация соединения с бд
-        self.conn = sqlite3.connect(db_file)
+        # Очищаем путь от SQLAlchemy-префикса для чистого sqlite3
+clean_path = db_file.replace("sqlite+aiosqlite:///", "").replace("sqlite:///", "")
+self.conn = sqlite3.connect(clean_path)
+
         self.cursor = self.conn.cursor()
 
     
