@@ -599,7 +599,7 @@ async def support_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
 
 @rt.message(user_states.waiting_for_support)
- def process_support_message(message: Message, state: FSMContext, bot):
+def process_support_message(message: Message, state: FSMContext, bot):
     user_id = message.from_user.id
     user_name = message.from_user.first_name
     username = message.from_user.username or "нет юзернейма"
