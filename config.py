@@ -1,5 +1,6 @@
 import os
 
+TOKEN = os.getenv("TOKEN")
 BOT_TOKEN = os.getenv("TOKEN")
 PASSWORD = "123"
 ADMIN_PASSWORD = "123"
