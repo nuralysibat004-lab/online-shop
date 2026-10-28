@@ -563,19 +563,6 @@ async def ref_menu(callback: CallbackQuery):
   )
 
 
-# Раздел: Поддержка
-@rt.callback_query(F.data == "support")
-async def support_menu(callback: CallbackQuery):
-  text = (
-      "🆘 <b>Поддержка</b>\n\n"
-      "Опишите вашу проблему или вопрос — мы постараемся ответить как можно скорее.\n\n"
-      "📎 При необходимости приложите фото или файл.\n\n"
-      "Напишите сообщение прямо сейчас 👇"
-  )
-  await callback.message.edit_text(
-      text, reply_markup=back_keyboard(), parse_mode="HTML"
-  )
-
 
 # Раздел: Промокод
 @rt.callback_query(F.data == "promocode")
@@ -598,3 +585,36 @@ async def orders_menu(callback: CallbackQuery):
       text, reply_markup=back_keyboard(), parse_mode="HTML"
 )
                      
+
+@rt.callback_query(F.data == "support")
+async def support_callback(callback: CallbackQuery, state: FSMContext):
+    await callback.message.edit_text(
+        "<b>💬 Поддержка</b>\n\n"
+        "Напишите вашу проблему или вопрос — мы постараемся ответить как можно скорее.\n"
+        "При необходимости приложите фото или файл.",
+        reply_markup=back_keyboard(),
+        parse_mode="HTML"
+    )
+    await state.set_state(user_states.waiting_for_support)
+    await callback.answer()
+
+@rt.message(user_states.waiting_for_support)
+async def process_support_message(message: Message, state: FSMContext, bot):
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name
+    username = message.from_user.username or "нет юзернейма"
+    
+    if ALLOWED_ADMIN_IDS:
+        admin_id = ALLOWED_ADMIN_IDS[0]
+        
+        admin_text = (
+            f"📩 <b>Новое обращение в поддержку!</b>\n\n"
+            f"👤 От: {user_name} (@{username})\n"
+            f"🆔 ID: <code>{user_id}</code>\n\n"
+            f"💬 <b>Сообщение:</b>\n{message.text}"
+        )
+        
+        await bot.send_message(admin_id, admin_text, parse_mode="HTML")
+    
+    await message.answer("✅ Ваше сообщение успешно отправлено в поддержку! Ожидайте ответа.")
+    await state.clear()
