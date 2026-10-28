@@ -44,8 +44,8 @@ async def start_handler(message: Message, state: FSMContext):
   await message.answer(
       text, reply_markup=get_main_keyboard(), parse_mode="HTML"
   )
-    
-    @rt.callback_query(F.data.in_(["user_is_seller","user_is_customer"]))
+
+@rt.callback_query(F.data.in_(["user_is_seller","user_is_customer"]))
 async def add_role(query: types.CallbackQuery, state: FSMContext):
     user_id = query.from_user.id
     # bot_db = BotDB(DATABASE)
