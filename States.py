@@ -12,3 +12,4 @@ class user_states(StatesGroup):
     waiting_for_promocode = State()
     waiting_for_role_change_password = State()
     waiting_for_admin_password = State()
+    waiting_for_support = State()
