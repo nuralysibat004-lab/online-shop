@@ -2,11 +2,10 @@ import sqlite3
 import csv
 from Exceptions import WrongItemException
 
-
 class BotDB:
     actual_id = int()
-    
-            def __init__(self, db_file):
+
+    def __init__(self, db_file):
         # Инициализация соединения с БД
         clean_path = db_file.replace("sqlite+aiosqlite:///", "").replace("sqlite:///", "")
         self.conn = sqlite3.connect(clean_path)
@@ -61,6 +60,7 @@ class BotDB:
         ''')
         
         self.conn.commit()
+        
                 
 
 
