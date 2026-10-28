@@ -6,12 +6,64 @@ from Exceptions import WrongItemException
 class BotDB:
     actual_id = int()
     
-    def __init__(self, db_file):
-        #Инициализация соединения с бд
-        # Очищаем путь от SQLAlchemy-префикса для чистого sqlite3
+        def __init__(self, db_file):
+        # Инициализация соединения с БД
         clean_path = db_file.replace("sqlite+aiosqlite:///", "").replace("sqlite:///", "")
         self.conn = sqlite3.connect(clean_path)
         self.cursor = self.conn.cursor()
+        
+        # --- АВТОМАТИЧЕСКОЕ СОЗДАНИЕ ТАБЛИЦ ---
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Users (
+                Telegram_id INTEGER PRIMARY KEY,
+                role TEXT DEFAULT 'Customer'
+            )
+        ''')
+        
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Orders (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                Customer_telegram_id INTEGER,
+                Seller_telegram_id INTEGER
+            )
+        ''')
+        
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Items (
+                item_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                name TEXT,
+                description TEXT,
+                price REAL,
+                amount INTEGER,
+                Picture TEXT
+            )
+        ''')
+        
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Favorite_Cart (
+                Item_id INTEGER,
+                Telegram_id INTEGER,
+                Item_location INTEGER
+            )
+        ''')
+        
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Seller (
+                Seller_telegram_id INTEGER PRIMARY KEY,
+                Description TEXT
+            )
+        ''')
+        
+        self.cursor.execute('''
+            CREATE TABLE IF NOT EXISTS Promo (
+                promocode TEXT,
+                discount INTEGER
+            )
+        ''')
+        
+        self.conn.commit()
+        # -------------------------------------
+
 
     
     def is_user_in_db(self, user_id):
