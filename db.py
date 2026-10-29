@@ -303,3 +303,4 @@ class BotDB:
         )
         self.conn.commit()
         
+        
