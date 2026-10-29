@@ -776,4 +776,111 @@ async def process_successful_payment(message: Message):
                     )
                 except Exception:
                     pass
-                    
+
+from aiogram.fsm.state import State, StatesGroup
+
+# Состояние для ввода суммы вывода
+class WithdrawState(StatesGroup):
+    waiting_for_amount = State()
+
+# 1. Меню рефералов с кнопкой вывода
+@rt.callback_query(F.data == "ref")
+async def ref_menu_handler(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_data = bot_db.get_user(user_id)
+    balance = user_data[0] if user_data else 0
+
+    bot_username = (await callback.bot.get_me()).username
+    ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+
+    text = (
+        f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
+        f"Приглашайте друзей и получайте <b>50 ⭐️ на баланс</b> за каждого друга, который купит товар на сумму от 500 ₽!\n\n"
+        f"🔗 <b>Ваша ссылка для приглашений:</b>\n<code>{ref_link}</code>\n\n"
+        f"💰 <b>Доступно на балансе:</b> <b>{balance} ⭐️</b>\n\n"
+        f"Вы можете вывести накопленные звёзды на свой аккаунт в любой момент."
+    )
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
+        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_main")]
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await callback.answer()
+
+# 2. Запуск процесса вывода при нажатии на кнопку
+@rt.callback_query(F.data == "withdraw_stars")
+async def withdraw_start(callback: types.CallbackQuery, state: FSMContext):
+    user_id = callback.from_user.id
+    user_data = bot_db.get_user(user_id)
+    balance = user_data[0] if user_data else 0
+
+    if balance < 50:
+        await callback.answer("❌ Минимальный баланс для вывода: 50 ⭐️", show_alert=True)
+        return
+
+    await state.set_state(WithdrawState.waiting_for_amount)
+    
+    text = (
+        f"📤 <b>ВЫВОД ЗВЁЗД</b>\n\n"
+        f"💰 На вашем реферальном балансе: <b>{balance} ⭐️</b>\n\n"
+        f"✍️ Напишите в чат число — сколько звёзд вы хотите вывести (от 50 и выше):"
+    )
+    
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="❌ Отмена", callback_data="ref")]
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await callback.answer()
+
+# 3. Обработка введенной суммы вывода (от 50 до бесконечности)
+@rt.message(WithdrawState.waiting_for_amount)
+async def process_withdraw_amount(message: types.Message, state: FSMContext):
+    user_id = message.from_user.id
+    user_name = message.from_user.username or message.from_user.first_name
+    
+    try:
+        amount = int(message.text.strip())
+    except ValueError:
+        await message.answer("❌ Пожалуйста, введите корректное число цифрами.")
+        return
+
+    user_data = bot_db.get_user(user_id)
+    balance = user_data[0] if user_data else 0
+
+    if amount < 50:
+        await message.answer("❌ Минимальная сумма для вывода: 50 ⭐️. Введите сумму от 50 и выше:")
+        return
+
+    if amount > balance:
+        await message.answer(f"❌ У вас недостаточно звёзд. На балансе доступно: {balance} ⭐️. Введите меньше:")
+        return
+
+    # Списываем баланс в базе
+    new_balance = balance - amount
+    bot_db.update_balance(user_id, new_balance) 
+    
+    await state.clear()
+
+    # Сообщение пользователю
+    await message.answer(
+        f"✅ <b>Запрос на вывод {amount} ⭐️ успешно создан!</b>\n\n"
+        f"Ожидайте зачисления звёзд на ваш аккаунт. Оставшийся баланс: {new_balance} ⭐️",
+        parse_mode="HTML"
+    )
+
+    # Уведомление администратору
+    ADMIN_ID = ALLOWED_ADMIN_IDS[0] if ALLOWED_ADMIN_IDS else user_id 
+    try:
+        await message.bot.send_message(
+            ADMIN_ID,
+            f"🔔 <b>Новая заявка на вывод звёзд!</b>\n\n"
+            f"👤 Пользователь: @{user_name} (ID: <code>{user_id}</code>)\n"
+            f"💰 Сумма к выводу: <b>{amount} ⭐️</b>",
+            parse_mode="HTML"
+        )
+    except Exception:
+        pass
+        
