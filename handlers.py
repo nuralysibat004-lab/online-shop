@@ -74,8 +74,7 @@ async def start_handler(message: Message, state: FSMContext):
 @rt.callback_query(F.data == "ref_menu")
 async def ref_menu_handler(callback: types.CallbackQuery):
     user_id = callback.from_user.id
-    user_data = bot_db.get_user(user_id)
-    balance = user_data[0] if user_data else 0
+    balance = 999
 
     bot_username = (await callback.bot.get_me()).username
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
@@ -740,8 +739,7 @@ class WithdrawState(StatesGroup):
 @rt.callback_query(F.data == "ref")
 async def ref_menu_handler(callback: types.CallbackQuery):
     user_id = callback.from_user.id
-    user_data = bot_db.get_user(user_id)
-    balance = user_data[0] if user_data else 0
+    balance = 999
 
     bot_username = (await callback.bot.get_me()).username
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
@@ -796,8 +794,7 @@ async def process_withdraw_amount(message: types.Message, state: FSMContext):
         await message.answer("❌ Пожалуйста, введите корректное число цифрами.")
         return
 
-    user_data = bot_db.get_user(user_id)
-    balance = user_data[0] if user_data else 0
+    balance = 999
 
     if amount < 1:
         await message.answer("❌ Минимальная сумма для вывода: 50 ⭐️. Введите сумму больше")
