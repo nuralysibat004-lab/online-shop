@@ -766,8 +766,8 @@ async def ref_menu_handler(callback: types.CallbackQuery):
 @rt.callback_query(F.data == "withdraw_stars")
 async def withdraw_start(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
-    user_data = bot_db.get_user(user_id)
-    balance = user_data[0] if user_data else 0
+    # user_data = bot_db.get_user(user_id)
+    balance = 999  # <--- Временно ставим тестовый баланс для проверки
 
     await state.set_state(WithdrawState.waiting_for_amount)
     
