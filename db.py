@@ -11,12 +11,16 @@ class BotDB:
         self.conn = sqlite3.connect(clean_path)
         self.cursor = self.conn.cursor()
         
-        self.cursor.execute('''
+                self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS Users (
                 Telegram_id INTEGER PRIMARY KEY,
-                role TEXT DEFAULT 'Customer'
+                role TEXT DEFAULT 'Customer',
+                balance INTEGER DEFAULT 0,
+                referrer_id INTEGER DEFAULT NULL,
+                purchase_bonused INTEGER DEFAULT 0
             )
         ''')
+        
         
         self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS Orders (
@@ -247,3 +251,37 @@ class BotDB:
         result = self.cursor.execute("SELECT * FROM Promo WHERE promocode = ?", (promocode,)).fetchone()
         return bool(result)
 
+    def add_user(self, user_id, referrer_id=None):
+        """Добавляет пользователя в базу, если его там нет, и сохраняет реферера."""
+        self.cursor.execute("SELECT Telegram_id FROM Users WHERE Telegram_id = ?", (user_id,))
+        row = self.cursor.fetchone()
+        if not row:
+            if referrer_id == user_id:
+                referrer_id = None
+            self.cursor.execute(
+                "INSERT INTO Users (Telegram_id, referrer_id, balance, purchase_bonused) VALUES (?, ?, 0, 0)",
+                (user_id, referrer_id)
+            )
+            self.conn.commit()
+
+    def get_user(self, user_id):
+        """Возвращает баланс и реферера пользователя."""
+        self.cursor.execute("SELECT balance, referrer_id FROM Users WHERE Telegram_id = ?", (user_id,))
+        return self.cursor.fetchone()
+
+    def add_balance(self, user_id, amount):
+        """Начисляет звезды на баланс пользователя."""
+        self.cursor.execute("UPDATE Users SET balance = balance + ? WHERE Telegram_id = ?", (amount, user_id))
+        self.conn.commit()
+
+    def has_received_bonus_for(self, user_id):
+        """Проверяет, был ли уже выдан бонус за покупку этого пользователя."""
+        self.cursor.execute("SELECT purchase_bonused FROM Users WHERE Telegram_id = ?", (user_id,))
+        row = self.cursor.fetchone()
+        return row[0] if row and len(row) > 0 else 0
+
+    def mark_purchase_bonused(self, user_id):
+        """Отмечает, что бонус за покупку этого пользователя уже выплачен."""
+        self.cursor.execute("UPDATE Users SET purchase_bonused = 1 WHERE Telegram_id = ?", (user_id,))
+        self.conn.commit()
+        
