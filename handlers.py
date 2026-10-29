@@ -616,3 +616,38 @@ async def process_support_message(message: Message, state: FSMContext, bot):
     await bot.send_message(admin_id, admin_text, parse_mode="HTML")
     await message.answer("✅ Ваше сообщение успешно отправлено в поддержку! Ожидайте ответа.")
     await state.clear()
+
+from aiogram.types import LabeledPrice, PreCheckoutQuery
+
+# 1. Отправка счета на оплату звёздами
+@rt.callback_query(F.data == "buy_stars_example")
+async def send_stars_invoice(callback: CallbackQuery):
+    await callback.message.answer_invoice(
+        title="Покупка Telegram Stars",
+        description="Тестовая оплата звёздами внутри бота",
+        prices=[LabeledPrice(label="Звёзды Telegram", amount=1)], # amount = количество звёзд (например, 1 звезда)
+        provider_token="", # Для XTR (Telegram Stars) токен поставщика НЕ нужен (оставляем пустым!)
+        currency="XTR",
+        payload="payload_buy_stars_1" # Уникальный ID заказа для твоей системы
+    )
+    await callback.answer()
+
+# 2. Обязательное подтверждение готовности принять платеж
+@rt.pre_checkout_query()
+async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery):
+    await pre_checkout_query.answer(ok=True)
+
+# 3. Обработка успешного платежа (автоматическая выдача)
+@rt.message(F.successful_payment)
+async def process_successful_payment(message: Message):
+    payment_info = message.successful_payment
+    stars_amount = payment_info.total_amount
+    payload = payment_info.invoice_payload
+
+    # Тут логика: зачислить звезды в БД или отправить товар
+    await message.answer(
+        f"🎉 <b>Оплата прошла успешно!</b>\n\n"
+        f"Вы успешно оплатили <b>{stars_amount} ⭐️</b>.\n"
+        f"Заказ <code>{payload}</code> выполнен автоматически!"
+    )
+    
