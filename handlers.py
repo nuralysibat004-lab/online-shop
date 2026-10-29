@@ -750,7 +750,7 @@ async def ref_menu_handler(callback: types.CallbackQuery):
         f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
         f"🎁 Приглашайте друзей — получайте <b>50 ⭐️</b> на баланс за каждого друга, который купит товар.\n"
         f"🔗 Ваша ссылка: <code>{ref_link}</code>\n\n"
-        f"⭐️ Доступно на балансе: <b>{balance} ⭐️</b>\n"
+        f"⭐️ Доступно на балансе: <b>{balance} </b>\n"
         f"📌 Вы можете вывести накопленные звезды на свой аккаунт в любой момент."
     )
 
@@ -773,7 +773,7 @@ async def withdraw_start(callback: types.CallbackQuery, state: FSMContext):
     
     text = (
         f"📤 <b>ВЫВОД ЗВЁЗД</b>\n\n"
-        f"⭐️ На вашем реферальном балансе: <b>{balance} ⭐️</b>\n\n"
+        f"⭐️ На вашем реферальном балансе: <b>{balance} </b>\n\n"
         f"✍️ Напишите в чат число — сколько звёзд вы хотите вывести:"
     )
     
@@ -800,11 +800,11 @@ async def process_withdraw_amount(message: types.Message, state: FSMContext):
     balance = user_data[0] if user_data else 0
 
     if amount < 1:
-        await message.answer("❌ Минимальная сумма для вывода: 0 ⭐️. Введите сумму больше:")
+        await message.answer("❌ Минимальная сумма для вывода: 50 ⭐️. Введите сумму больше")
         return
 
     if amount > balance:
-        await message.answer(f"❌ У вас недостаточно звёзд. На балансе доступно: {balance} ⭐️. Сначала заработайте в реферальной системе:")
+        await message.answer(f"❌ У вас недостаточно звёзд. На балансе доступно: {balance} ⭐️.")
         return
 
     # Списываем баланс в базе
