@@ -44,12 +44,12 @@ async def start_handler(message: Message, state: FSMContext):
         try:
             # Извлекаем ID пригласившего
             parsed_id = int(args[1].replace("ref_", ""))
-            if parsed_id != user_id: # Защита от самореферала
+            if parsed_id != user_id:  # Защита от самореферала
                 referrer_id = parsed_id
         except ValueError:
             pass
 
-    # Добавляем юзера в базу (метод add_user мы уже делали в db.py)
+    # Добавляем юзера в базу
     bot_db.add_user(user_id, referrer_id)
 
     # Получаем данные пользователя (баланс, реферер)
@@ -65,11 +65,12 @@ async def start_handler(message: Message, state: FSMContext):
         f"⭐ Твой баланс звёзд: <b>{balance} ⭐️</b>\n\n"
         f"👥 <b>Реферальная система:</b>\n"
         f"Приглашай друзей по своей ссылке:\n<code>{ref_link}</code>\n\n"
-        f"🔥 Когда твой друг купит товар на сумму от 500 ₽ (350 ⭐️), тебе на баланс автоматически зачислится <b>+50 ⭐️</b>!\n\n"
+        f"🔥 Когда твой друг купит товар на сумму от 500 ₽, тебе на баланс автоматически зачислится <b>+50 ⭐️</b>!\n\n"
         f"👇 Выберите нужный раздел в меню ниже 👇"
     )
 
     await message.answer(text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+    
     @rt.callback_query(F.data == "ref_menu")
 async def ref_menu_handler(callback: types.CallbackQuery):
     user_id = callback.from_user.id
@@ -81,7 +82,7 @@ async def ref_menu_handler(callback: types.CallbackQuery):
 
     text = (
         f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-        f"Приглашайте друзей и получайте <b>50 ⭐️ на баланс</b> за каждого друга, который купит товар на сумму от 500 ₽ (350 ⭐️)!\n\n"
+        f"Приглашайте друзей и получайте <b>50 ⭐️ на баланс</b> за каждого друга, который купит товар на сумму от 500 ₽!\n\n"
         f"🔗 <b>Ваша ссылка для приглашений:</b>\n<code>{ref_link}</code>\n\n"
         f"💰 <b>Доступно на балансе:</b> <b>{balance} ⭐️</b>\n\n"
         f"Вы можете вывести накопленные звёзды на свой аккаунт в любой момент."
@@ -770,7 +771,7 @@ async def process_successful_payment(message: Message):
                 try:
                     await message.bot.send_message(
                         referrer_id,
-                        "🎉 <b>Твой друг совершил покупку на сумму от 500 ₽ (350 ⭐️)!</b>\n\n"
+                        "🎉 <b>Твой друг совершил покупку на сумму от 500 ₽!</b>\n\n"
                         "Тебе начислено бонусное вознаграждение: <b>+50 ⭐️</b> на баланс!",
                         parse_mode="HTML"
                     )
