@@ -444,7 +444,7 @@ def get_main_keyboard():
               ),
               InlineKeyboardButton(text="👥 Рефералы", callback_data="ref"),
           ],
-          [InlineKeyboardButton(text="🆘 Поддержка", callback_data="support")],
+          [InlineKeyboardButton(text="🆘 Поддержка", callback_data="support")],   
       ]
   )
 
@@ -616,11 +616,11 @@ async def ref_menu(callback: CallbackQuery):
   user_id = callback.from_user.id
   text = (
       f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-      "Приглашайте друзей — получите 50 🌟 по персональному промокоду!\n\n"
+      "Приглашайте друзей получите 50 🌟!\n\n"
       f"🔗 <b>Ваша ссылка:</b>\n<code>https://t.me/gumstars09_bot?start=ref{user_id}</code>\n\n"
       "👥 Перешло по ссылке: 0\n"
-      "⭐ Купили на от 500 ₽: 0\n\n"
-      "Пригласите друга, который купит на сумму от 500 ₽ — и получите промокод на 50 🌟."
+      "⭐ Купили от 500 ₽: 0\n\n"
+      "Пригласите друга, который купит на сумму от 500 ₽ и получите 50 🌟."
   )
   await callback.message.edit_text(
       text, reply_markup=back_keyboard(), parse_mode="HTML"
@@ -630,55 +630,7 @@ async def ref_menu(callback: CallbackQuery):
 
 from aiogram.types import LabeledPrice, PreCheckoutQuery, InlineKeyboardMarkup, InlineKeyboardButton
 
-# Раздел: Промокод / Покупка звёзд
-@rt.callback_query(F.data == "promocode")
-async def promo_menu(callback: CallbackQuery):
-    keyboard = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="⭐️ Купить 50 Звёзд (50 ⭐️)", callback_game=None, callback_data="buy_50_stars")],
-            [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
-        ]
-    )
-    
-    text = (
-        "<b>⭐️ ПОКУПКА ЗВЁЗД TELEGRAM</b>\n\n"
-        "Выберите количество звёзд для мгновенной авто-покупки:"
-    )
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-    await callback.answer()
 
-# 1. Выставление счёта на 50 звёзд
-@rt.callback_query(F.data == "buy_50_stars")
-async def send_stars_invoice(callback: CallbackQuery):
-    await callback.message.answer_invoice(
-        title="Покупка 50 Telegram Stars",
-        description="Мгновенное пополнение звёзд через официальную систему Telegram",
-        prices=[LabeledPrice(label="50 Звёзд", amount=50)], # amount = 50 звёзд
-        provider_token="", # Для Telegram Stars (XTR) оставляем пустым!
-        currency="XTR",
-        payload="buy_stars_pack_50"
-    )
-    await callback.answer()
-
-# 2. Подтверждение готовности принять платёж
-@rt.pre_checkout_query()
-async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery):
-    await pre_checkout_query.answer(ok=True)
-
-# 3. Автоматическая обработка успешной оплаты
-@rt.message(F.successful_payment)
-async def process_successful_payment(message: Message):
-    payment_info = message.successful_payment
-    stars_amount = payment_info.total_amount
-    payload = payment_info.invoice_payload
-
-    # Автоматический ответ ботом при успехе
-    await message.answer(
-        f"🎉 <b>Оплата прошла успешно!</b>\n\n"
-        f"Вы успешно приобрели <b>{stars_amount} ⭐️</b>!\n"
-        f"Номер транзакции: <code>{payload}</code>\n\n"
-        f"Спасибо за покупку!"
-    )
     
 # Раздел: Мои заказы
 @rt.callback_query(F.data == "my_orders")
