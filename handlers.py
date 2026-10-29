@@ -445,7 +445,6 @@ def get_main_keyboard():
               InlineKeyboardButton(text="👥 Рефералы", callback_data="ref"),
           ],
           [InlineKeyboardButton(text="🆘 Поддержка", callback_data="support")],
-          [InlineKeyboardButton(text="🎟 Промокод", callback_data="promocode")],
       ]
   )
 
