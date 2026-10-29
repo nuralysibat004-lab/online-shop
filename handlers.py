@@ -70,7 +70,44 @@ async def start_handler(message: Message, state: FSMContext):
     )
 
     await message.answer(text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+    @rt.callback_query(F.data == "ref_menu")
+async def ref_menu_handler(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_data = bot_db.get_user(user_id)
+    balance = user_data[0] if user_data else 0
+
+    bot_username = (await callback.bot.get_me()).username
+    ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+
+    text = (
+        f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
+        f"Приглашайте друзей и получайте <b>50 ⭐️ на баланс</b> за каждого друга, который купит товар на сумму от 500 ₽ (350 ⭐️)!\n\n"
+        f"🔗 <b>Ваша ссылка для приглашений:</b>\n<code>{ref_link}</code>\n\n"
+        f"💰 <b>Доступно на балансе:</b> <b>{balance} ⭐️</b>\n\n"
+        f"Вы можете вывести накопленные звёзды на свой аккаунт в любой момент."
+    )
     
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
+        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_main")]
+    ])
+    
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await callback.answer()
+@rt.callback_query(F.data == "withdraw_stars")
+async def withdraw_handler(callback: types.CallbackQuery):
+    user_id = callback.from_user.id
+    user_data = bot_db.get_user(user_id)
+    balance = user_data[0] if user_data else 0
+
+    if balance < 50:
+        await callback.answer("❌ Минимальный баланс для вывода: 50 ⭐️", show_alert=True)
+        return
+    
+    await callback.answer(
+        f"✅ Запрос на вывод {balance} ⭐️ успешно создан! Ожидайте зачисления на аккаунт.", 
+        show_alert=True
+    )
     
 @rt.callback_query(F.data.in_(["user_is_seller","user_is_customer"]))
 async def add_role(query: types.CallbackQuery, state: FSMContext):
