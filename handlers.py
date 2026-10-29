@@ -35,7 +35,7 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
-TEST_MODE = True
+TEST_MODE = False
 TEST_BALANCE = 999
 MIN_WITHDRAW = 50
 REFERRAL_BONUS = 50
@@ -59,26 +59,17 @@ def hash_password(password):
 
 
 def get_balance(user_id: int) -> int:
-    if TEST_MODE:
-        return _test_balances.setdefault(user_id, TEST_BALANCE)
     user_data = bot_db.get_user(user_id)
-    return user_data[0] if user_data else 0
+    return user_data[0] if user_data and user_data[0] is not None else 0
 
 
 def set_balance(user_id: int, new_balance: int) -> None:
-    if TEST_MODE:
-        _test_balances[user_id] = new_balance
-    else:
-        bot_db.update_balance(user_id, new_balance)
+    bot_db.update_balance(user_id, new_balance)
 
 
 def add_to_balance(user_id: int, amount: int) -> None:
-    if TEST_MODE:
-        _test_balances[user_id] = get_balance(user_id) + amount
-    else:
-        bot_db.add_balance(user_id, amount)
-
-
+    bot_db.add_balance(user_id, amount)
+    
 def get_referrals_count(user_id: int) -> int:
     try:
         return bot_db.count_referrals(user_id)
