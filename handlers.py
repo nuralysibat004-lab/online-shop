@@ -71,7 +71,7 @@ async def start_handler(message: Message, state: FSMContext):
 
     await message.answer(text, reply_markup=get_main_keyboard(), parse_mode="HTML")
     
-    @rt.callback_query(F.data == "ref_menu")
+@rt.callback_query(F.data == "ref_menu")
 async def ref_menu_handler(callback: types.CallbackQuery):
     user_id = callback.from_user.id
     user_data = bot_db.get_user(user_id)
