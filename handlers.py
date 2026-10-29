@@ -786,7 +786,7 @@ async def withdraw_start(callback: types.CallbackQuery, state: FSMContext):
     user_data = bot_db.get_user(user_id)
     balance = user_data[0] if user_data else 0
 
-    if balance < 50:
+    if balance < 0:
         await callback.answer("❌ Минимальный баланс для вывода: 50 ⭐️", show_alert=True)
         return
 
