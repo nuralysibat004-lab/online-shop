@@ -564,19 +564,58 @@ async def ref_menu(callback: CallbackQuery):
 
 
 
-# Раздел: Промокод
+from aiogram.types import LabeledPrice, PreCheckoutQuery, InlineKeyboardMarkup, InlineKeyboardButton
+
+# Раздел: Промокод / Покупка звёзд
 @rt.callback_query(F.data == "promocode")
 async def promo_menu(callback: CallbackQuery):
-  text = (
-      "🎟 <b>ПРОМОКОДЫ</b>\n\n"
-      "Введите промокод текстом, чтобы получить 🌟 звёзды 👇\n\n"
-      "Кодов пока нет — введите первый!"
-  )
-  await callback.message.edit_text(
-      text, reply_markup=back_keyboard(), parse_mode="HTML"
-  )
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="⭐️ Купить 50 Звёзд (50 ⭐️)", callback_game=None, callback_data="buy_50_stars")],
+            [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+        ]
+    )
+    
+    text = (
+        "<b>⭐️ ПОКУПКА ЗВЁЗД TELEGRAM</b>\n\n"
+        "Выберите количество звёзд для мгновенной авто-покупки:"
+    )
+    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
+    await callback.answer()
 
+# 1. Выставление счёта на 50 звёзд
+@rt.callback_query(F.data == "buy_50_stars")
+async def send_stars_invoice(callback: CallbackQuery):
+    await callback.message.answer_invoice(
+        title="Покупка 50 Telegram Stars",
+        description="Мгновенное пополнение звёзд через официальную систему Telegram",
+        prices=[LabeledPrice(label="50 Звёзд", amount=50)], # amount = 50 звёзд
+        provider_token="", # Для Telegram Stars (XTR) оставляем пустым!
+        currency="XTR",
+        payload="buy_stars_pack_50"
+    )
+    await callback.answer()
 
+# 2. Подтверждение готовности принять платёж
+@rt.pre_checkout_query()
+async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery):
+    await pre_checkout_query.answer(ok=True)
+
+# 3. Автоматическая обработка успешной оплаты
+@rt.message(F.successful_payment)
+async def process_successful_payment(message: Message):
+    payment_info = message.successful_payment
+    stars_amount = payment_info.total_amount
+    payload = payment_info.invoice_payload
+
+    # Автоматический ответ ботом при успехе
+    await message.answer(
+        f"🎉 <b>Оплата прошла успешно!</b>\n\n"
+        f"Вы успешно приобрели <b>{stars_amount} ⭐️</b>!\n"
+        f"Номер транзакции: <code>{payload}</code>\n\n"
+        f"Спасибо за покупку!"
+    )
+    
 # Раздел: Мои заказы
 @rt.callback_query(F.data == "my_orders")
 async def orders_menu(callback: CallbackQuery):
