@@ -768,3 +768,18 @@ async def process_withdraw_amount(message: Message, state: FSMContext):
 @rt.message(WithdrawState.waiting_for_amount)
 async def withdraw_amount_not_text(message: Message):
     await message.answer("❌ Отправьте сумму числом в текстовом сообщении.")
+
+@rt.message(Command("dbcheck"))
+async def dbcheck(message: Message, command: CommandObject):
+    if message.from_user.id not in ADMIN_IDS:
+        return
+    uid = int(command.args) if command.args and command.args.isdigit() else message.from_user.id
+    try:
+        row = bot_db.get_user(uid)
+    except Exception as e:
+        row = f"ERROR: {e!r}"
+    try:
+        cnt = bot_db.count_referrals(uid)
+    except Exception as e:
+        cnt = f"ERROR: {e!r}"
+    await message.answer(f"user_id: {uid}\nстрока в БД: {row}\nпришло рефералов: {cnt}")
