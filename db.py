@@ -295,4 +295,11 @@ class BotDB:
             return row[0] if row else 0
         except Exception:
             return 0
-            
+
+    def update_balance(self, user_id, new_balance):
+        """Сохраняет новый баланс в базу данных."""
+        self.cursor.execute(
+            "UPDATE Users SET balance = ? WHERE Telegram_id = ?", (new_balance, user_id)
+        )
+        self.conn.commit()
+        
