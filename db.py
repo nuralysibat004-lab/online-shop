@@ -286,3 +286,13 @@ class BotDB:
         self.cursor.execute("UPDATE Users SET purchase_bonused = 1 WHERE Telegram_id = ?", (user_id,))
         self.conn.commit()
         
+    def count_referrals(self, user_id):
+        """Возвращает количество пользователей, которых пригласил данный юзер."""
+        try:
+            row = self.cursor.execute(
+                "SELECT COUNT(*) FROM Users WHERE referrer_id = ?", (user_id,)
+            ).fetchone()
+            return row[0] if row else 0
+        except Exception:
+            return 0
+            
