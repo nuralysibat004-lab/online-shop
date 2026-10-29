@@ -89,7 +89,10 @@ async def ref_menu_handler(callback: types.CallbackQuery):
     )
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-
+        [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
+        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_main")]
+    ])
+    
 @rt.callback_query(F.data.in_(["user_is_seller","user_is_customer"]))
 async def add_role(query: types.CallbackQuery, state: FSMContext):
     user_id = query.from_user.id
