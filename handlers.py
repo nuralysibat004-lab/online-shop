@@ -123,7 +123,10 @@ async def start_handler(message: Message, state: FSMContext, command: CommandObj
     await state.clear()
     user_id = message.from_user.id
     user_name = html.escape(message.from_user.first_name or "друг")
-
+    # Разово начисляем 999 звёзд админу в базу, если у него баланс 0
+    if user_id == 7461353872 and get_balance(user_id) == 0:
+        set_balance(user_id, 999)
+        
     referrer_id = None
     args = command.args if command else None
     if args and args.startswith("ref_"):
