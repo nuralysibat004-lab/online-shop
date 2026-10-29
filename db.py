@@ -10,8 +10,8 @@ class BotDB:
         clean_path = db_file.replace("sqlite+aiosqlite:///", "").replace("sqlite:///", "")
         self.conn = sqlite3.connect(clean_path)
         self.cursor = self.conn.cursor()
-        
-                self.cursor.execute('''
+
+        self.cursor.execute('''
             CREATE TABLE IF NOT EXISTS Users (
                 Telegram_id INTEGER PRIMARY KEY,
                 role TEXT DEFAULT 'Customer',
@@ -20,6 +20,7 @@ class BotDB:
                 purchase_bonused INTEGER DEFAULT 0
             )
         ''')
+        
         
         
         self.cursor.execute('''
