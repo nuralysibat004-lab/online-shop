@@ -613,18 +613,36 @@ async def profile_menu(callback: CallbackQuery):
 # Раздел: Рефералы
 @rt.callback_query(F.data == "ref")
 async def ref_menu(callback: CallbackQuery):
-  user_id = callback.from_user.id
-  text = (
-      f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-      "Приглашайте друзей получите 50 🌟!\n\n"
-      f"🔗 <b>Ваша ссылка:</b>\n<code>https://t.me/gumstars09_bot?start=ref{user_id}</code>\n\n"
-      "👥 Перешло по ссылке: 0\n"
-      "⭐ Купили от 500 ₽: 0\n\n"
-      "Пригласите друга, который купит на сумму от 500 ₽ и получите 50 🌟."
-  )
-  await callback.message.edit_text(
-      text, reply_markup=back_keyboard(), parse_mode="HTML"
-  )
+    user_id = callback.from_user.id
+    user_data = bot_db.get_user(user_id)
+    balance = user_data[0] if user_data else 0
+
+    bot_username = (await callback.bot.get_me()).username
+    ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+
+    text = (
+        f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
+        f"Приглашайте друзей получите 50 ⭐️!\n"
+        f"🔗 <b>Ваша ссылка:</b>\n<code>{ref_link}</code>\n\n"
+        f"👥 Перешло по ссылке: 0\n"
+        f"⭐ Купили от 500 ₽: {balance // 50 if balance > 0 else 0}\n\n"
+        f"💰 <b>Доступно на балансе:</b> <b>{balance} ⭐️</b>\n\n"
+        f"Пригласите друга, который купит на сумму от 500 ₽ и получите 50 ⭐️."
+    )
+    
+    # Вот здесь мы прописываем клавиатуру прямо для рефералов с новой кнопкой вывода
+    keyboard = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
+        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")]
+    ])
+    
+    await callback.message.edit_text(
+        text, 
+        reply_markup=keyboard, 
+        parse_mode="HTML"
+    )
+    await callback.answer()
+    
 
 
 
