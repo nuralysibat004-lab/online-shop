@@ -89,27 +89,7 @@ async def ref_menu_handler(callback: types.CallbackQuery):
     )
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
-        [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_main")]
-    ])
-    
-    await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
-    await callback.answer()
-@rt.callback_query(F.data == "withdraw_stars")
-async def withdraw_handler(callback: types.CallbackQuery):
-    user_id = callback.from_user.id
-    user_data = bot_db.get_user(user_id)
-    balance = user_data[0] if user_data else 0
 
-    if balance < 50:
-        await callback.answer("❌ Минимальный баланс для вывода: 50 ⭐️", show_alert=True)
-        return
-    
-    await callback.answer(
-        f"✅ Запрос на вывод {balance} ⭐️ успешно создан! Ожидайте зачисления на аккаунт.", 
-        show_alert=True
-    )
-    
 @rt.callback_query(F.data.in_(["user_is_seller","user_is_customer"]))
 async def add_role(query: types.CallbackQuery, state: FSMContext):
     user_id = query.from_user.id
