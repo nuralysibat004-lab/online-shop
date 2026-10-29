@@ -786,16 +786,17 @@ async def withdraw_start(callback: types.CallbackQuery, state: FSMContext):
     user_data = bot_db.get_user(user_id)
     balance = user_data[0] if user_data else 0
 
-    if balance < 0:
-        await callback.answer("❌ Минимальный баланс для вывода: 50 ⭐️", show_alert=True)
-        return
+    # Временно убираем проверку баланса для теста
+    # if balance < 50:
+    #     await callback.answer("❌ Минимальный баланс для вывода: 50 ⭐️", show_alert=True)
+    #     return
 
     await state.set_state(WithdrawState.waiting_for_amount)
     
     text = (
         f"📤 <b>ВЫВОД ЗВЁЗД</b>\n\n"
         f"⭐️ На вашем реферальном балансе: <b>{balance} ⭐️</b>\n\n"
-        f"✍️ Напишите в чат число — сколько звёзд вы хотите вывести (от 50 и выше):"
+        f"✍️ Напишите в чат число — сколько звёзд вы хотите вывести:"
     )
     
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
