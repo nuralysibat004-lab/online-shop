@@ -795,8 +795,8 @@ async def ref_menu_handler(callback: types.CallbackQuery):
 
     text = (
         f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-        f"Приглашайте друзей и получайте <b>50 ⭐️ на баланс</b> за каждого друга, который купит товар на сумму от 500 ₽!\n\n"
-        f"🔗 <b>Ваша ссылка для приглашений:</b>\n<code>{ref_link}</code>\n\n"
+        f"Приглашайте друзей — получите <b>50 ⭐️ на баланс</b> за каждого друга, который купит товар на сумму от 500 ₽!\n\n"
+        f"🔗 <b>Ваша ссылка:</b>\n<code>{ref_link}</code>\n\n"
         f"💰 <b>Доступно на балансе:</b> <b>{balance} ⭐️</b>\n\n"
         f"Вы можете вывести накопленные звёзды на свой аккаунт в любой момент."
     )
@@ -824,7 +824,7 @@ async def withdraw_start(callback: types.CallbackQuery, state: FSMContext):
     
     text = (
         f"📤 <b>ВЫВОД ЗВЁЗД</b>\n\n"
-        f"💰 На вашем реферальном балансе: <b>{balance} ⭐️</b>\n\n"
+        f"⭐️ На вашем реферальном балансе: <b>{balance} ⭐️</b>\n\n"
         f"✍️ Напишите в чат число — сколько звёзд вы хотите вывести (от 50 и выше):"
     )
     
@@ -835,7 +835,7 @@ async def withdraw_start(callback: types.CallbackQuery, state: FSMContext):
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
-# 3. Обработка введенной суммы вывода (от 50 до бесконечности)
+# 3. Обработка введенной суммы вывода
 @rt.message(WithdrawState.waiting_for_amount)
 async def process_withdraw_amount(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
@@ -883,4 +883,4 @@ async def process_withdraw_amount(message: types.Message, state: FSMContext):
         )
     except Exception:
         pass
-        
+    
