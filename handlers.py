@@ -598,8 +598,7 @@ async def support_callback(callback: CallbackQuery, state: FSMContext):
     await state.set_state(user_states.waiting_for_support)
     await callback.answer()
 
-    
-    @rt.message(user_states.waiting_for_support)
+@rt.message(user_states.waiting_for_support)
 async def process_support_message(message: Message, state: FSMContext, bot):
     user_id = message.from_user.id
     user_name = message.from_user.first_name
