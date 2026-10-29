@@ -765,17 +765,17 @@ async def ref_menu_handler(callback: types.CallbackQuery):
 
     text = (
         f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-        f"Приглашайте друзей — получите <b>50 ⭐️ на баланс</b> за каждого друга, который купит товар на сумму от 500 ₽!\n\n"
-        f"🔗 <b>Ваша ссылка:</b>\n<code>{ref_link}</code>\n\n"
-        f"💰 <b>Доступно на балансе:</b> <b>{balance} ⭐️</b>\n\n"
-        f"Вы можете вывести накопленные звёзды на свой аккаунт в любой момент."
+        f"🎁 Приглашайте друзей — получайте <b>50 ⭐️</b> на баланс за каждого друга, который купит товар.\n"
+        f"🔗 Ваша ссылка: <code>{ref_link}</code>\n\n"
+        f"⭐️ Доступно на балансе: <b>{balance} ⭐️</b>\n"
+        f"📌 Вы можете вывести накопленные звезды на свой аккаунт в любой момент."
     )
-    
+
     keyboard = InlineKeyboardMarkup(inline_keyboard=[
         [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
         [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_main")]
     ])
-    
+
     await callback.message.edit_text(text, reply_markup=keyboard, parse_mode="HTML")
     await callback.answer()
 
@@ -785,11 +785,6 @@ async def withdraw_start(callback: types.CallbackQuery, state: FSMContext):
     user_id = callback.from_user.id
     user_data = bot_db.get_user(user_id)
     balance = user_data[0] if user_data else 0
-
-    # Временно убираем проверку баланса для теста
-    # if balance < 50:
-    #     await callback.answer("❌ Минимальный баланс для вывода: 50 ⭐️", show_alert=True)
-    #     return
 
     await state.set_state(WithdrawState.waiting_for_amount)
     
@@ -811,7 +806,7 @@ async def withdraw_start(callback: types.CallbackQuery, state: FSMContext):
 async def process_withdraw_amount(message: types.Message, state: FSMContext):
     user_id = message.from_user.id
     user_name = message.from_user.username or message.from_user.first_name
-    
+
     try:
         amount = int(message.text.strip())
     except ValueError:
@@ -821,8 +816,8 @@ async def process_withdraw_amount(message: types.Message, state: FSMContext):
     user_data = bot_db.get_user(user_id)
     balance = user_data[0] if user_data else 0
 
-    if amount < 50:
-        await message.answer("❌ Минимальная сумма для вывода: 50 ⭐️. Введите сумму от 50 и выше:")
+    if amount < 1:
+        await message.answer("❌ Минимальная сумма для вывода: 1 ⭐️. Введите сумму больше:")
         return
 
     if amount > balance:
@@ -831,25 +826,25 @@ async def process_withdraw_amount(message: types.Message, state: FSMContext):
 
     # Списываем баланс в базе
     new_balance = balance - amount
-    bot_db.update_balance(user_id, new_balance) 
-    
+    bot_db.update_balance(user_id, new_balance)
+
     await state.clear()
 
     # Сообщение пользователю
     await message.answer(
         f"✅ <b>Запрос на вывод {amount} ⭐️ успешно создан!</b>\n\n"
-        f"Ожидайте зачисления звёзд на ваш аккаунт. Оставшийся баланс: {new_balance} ⭐️",
+        f"⏳ Ожидайте зачисления звёзд на ваш аккаунт. Оставшийся баланс: {new_balance} ⭐️.",
         parse_mode="HTML"
     )
 
     # Уведомление администратору
-    ADMIN_ID = ALLOWED_ADMIN_IDS[0] if ALLOWED_ADMIN_IDS else user_id 
+    ADMIN_ID = ALLOWED_ADMIN_IDS[0] if ALLOWED_ADMIN_IDS else user_id
     try:
         await message.bot.send_message(
             ADMIN_ID,
-            f"🔔 <b>Новая заявка на вывод звёзд!</b>\n\n"
+            f"⚠️ <b>Новая заявка на вывод звёзд!</b>\n\n"
             f"👤 Пользователь: @{user_name} (ID: <code>{user_id}</code>)\n"
-            f"💰 Сумма к выводу: <b>{amount} ⭐️</b>",
+            f"⭐️ Сумма к выводу: <b>{amount} ⭐️</b>",
             parse_mode="HTML"
         )
     except Exception:
