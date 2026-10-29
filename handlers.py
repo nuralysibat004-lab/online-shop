@@ -34,17 +34,38 @@ def hash_password(password):
 
 @rt.message(Command("start"))
 async def start_handler(message: Message, state: FSMContext):
-  await state.clear()
-  user_name = message.from_user.first_name
-  text = (
-      f"👋 Салам алейкум, <b>{user_name}</b>! Ты попал в <b>GumStars</b> — бот"
-      " по продаже криптовалюты, NFT и звёзд 🌟\n\n💎 Быстро, безопасно и по"
-      " выгодному курсу.\nВыберите нужный раздел в меню ниже 👇"
-  )
-  await message.answer(
-      text, reply_markup=get_main_keyboard(), parse_mode="HTML"
-  )
+    await state.clear()
+    user_id = message.from_user.id
+    user_name = message.from_user.first_name
+    
+    args = message.text.split()
+    referrer_id = None
+    if len(args) > 1 and args[1].startswith("ref_"):
+        try:
+            referrer_id = int(args[1].split("_")[1])
+        except ValueError:
+            pass
+            
+    bot_db.add_user(user_id, referrer_id)
+    
+    user_data = bot_db.get_user(user_id)
+    balance = user_data[0] if user_data and user_data[0] is not None else 0
 
+    bot_username = (await message.bot.get_me()).username
+    ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+
+    text = (
+        f"👋 Салам Алейкум, <b>{user_name}</b>! Ты попал в <b>GumStars</b> — бот\n"
+        f"по продаже криптовалюты, NFT и звёзд ⭐️\n\n"
+        f"⭐️ Твой баланс звёзд: <b>{balance} ⭐️</b>\n\n"
+        f"👥 <b>Реферальная система:</b>\n"
+        f"Приглашай друзей по своей ссылке:\n<code>{ref_link}</code>\n\n"
+        f"🎁 <i>Когда твой друг купит товар на сумму от 500 ₽ (350 ⭐️), тебе на баланс автоматически начислится <b>50 звёзд</b>!</i>\n\n"
+        f"👇 Выберите нужный раздел в меню ниже 👇"
+    )
+    
+    await message.answer(text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+    
 @rt.callback_query(F.data.in_(["user_is_seller","user_is_customer"]))
 async def add_role(query: types.CallbackQuery, state: FSMContext):
     user_id = query.from_user.id
