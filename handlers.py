@@ -800,11 +800,11 @@ async def process_withdraw_amount(message: types.Message, state: FSMContext):
     balance = user_data[0] if user_data else 0
 
     if amount < 1:
-        await message.answer("❌ Минимальная сумма для вывода: 1 ⭐️. Введите сумму больше:")
+        await message.answer("❌ Минимальная сумма для вывода: 0 ⭐️. Введите сумму больше:")
         return
 
     if amount > balance:
-        await message.answer(f"❌ У вас недостаточно звёзд. На балансе доступно: {balance} ⭐️. Введите меньше:")
+        await message.answer(f"❌ У вас недостаточно звёзд. На балансе доступно: {balance} ⭐️. Сначала заработайте в реферальной системе:")
         return
 
     # Списываем баланс в базе
