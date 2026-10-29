@@ -604,7 +604,7 @@ async def process_support_message(message: Message, state: FSMContext, bot):
     user_name = message.from_user.first_name
     username = message.from_user.username or "нет юзернейма"
     
-    admin_id = 746135387  # Твой ID
+    admin_id = 7461353872  # Твой ID
     
     admin_text = (
         f"📩 <b>Новое обращение в поддержку!</b>\n\n"
