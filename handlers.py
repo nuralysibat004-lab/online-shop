@@ -697,17 +697,40 @@ async def send_stars_invoice(callback: CallbackQuery):
 async def process_pre_checkout(pre_checkout_query: PreCheckoutQuery):
     await pre_checkout_query.answer(ok=True)
 
-# 3. Обработка успешного платежа (автоматическая выдача)
 @rt.message(F.successful_payment)
 async def process_successful_payment(message: Message):
+    user_id = message.from_user.id
     payment_info = message.successful_payment
-    stars_amount = payment_info.total_amount
-    payload = payment_info.invoice_payload
-
-    # Тут логика: зачислить звезды в БД или отправить товар
+    stars_amount = payment_info.total_amount # Количество звёзд, которые реально купил юзер
+    
     await message.answer(
-        f"🎉 <b>Оплата прошла успешно!</b>\n\n"
-        f"Вы успешно оплатили <b>{stars_amount} ⭐️</b>.\n"
-        f"Заказ <code>{payload}</code> выполнен автоматически!"
+        f"🎉 <b>Оплата прошла успешно!</b>\n"
+        f"Вы успешно приобрели пакет на <b>{stars_amount} ⭐️</b>. Спасибо за покупку!",
+        parse_mode="HTML"
     )
     
+    # Проверяем условие: если покупка от 350 звёзд (эквивалент 500 ₽)
+    if stars_amount >= 350:
+        user_data = bot_db.get_user(user_id)
+        if user_data:
+            balance, referrer_id = user_data[0], user_data[1] if len(user_data) > 1 else None
+            
+            # Если реферер есть и бонус за этого друга еще не начислялся
+            if referrer_id and not bot_db.has_received_bonus_for(user_id):
+                # Отмечаем, что бонус за этого друга уже выдан
+                bot_db.mark_purchase_bonused(user_id)
+                
+                # Начисляем 50 звёзд пригласившему
+                bot_db.add_balance(referrer_id, 50)
+                
+                # Уведомляем пригласившего в ЛС
+                try:
+                    await message.bot.send_message(
+                        referrer_id,
+                        "🎉 <b>Твой друг совершил покупку на сумму от 500 ₽ (350 ⭐️)!</b>\n\n"
+                        "Тебе начислено бонусное вознаграждение: <b>+50 ⭐️</b> на баланс!",
+                        parse_mode="HTML"
+                    )
+                except Exception:
+                    pass
+                    
