@@ -290,11 +290,19 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     target_user = data.get("target_user", f"@{callback.from_user.username}")
     
+    rub_price = product_info["amount"]
+    
+    # Примерный расчет в USDT (можно скорректировать под актуальный курс, например 1 USDT ≈ 95-100 ₽, 
+    # либо передавать рублевый эквивалент в описании)
+    # Для примера берем фиксированный условный курс или пишем сумму в описании для ясности:
+    usdt_amount = round(rub_price / 95.0, 2) # Укажи актуальный курс обмена или оставь расчет
+
     try:
+        # Создаем счет в USDT, так как рублевые счета требуют активированного фиатного мерчанта в CryptoBot
         invoice = await cryptopay.create_invoice(
             asset='USDT',
-            amount=product_info["amount"],
-            description=f"Покупка {product_info['title']} для {target_user}",
+            amount=usdt_amount,
+            description=f"Покупка {product_info['title']} для {target_user} (Эквивалент: {rub_price} ₽)",
             payload=f"{product_key}:{target_user}"
         )
         
@@ -309,7 +317,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
             f"🛒 <b>Заказ успешно сформирован!</b>\n\n"
             f"📦 Товар: <b>{product_info['title']}</b>\n"
             f"👤 Получатель: <code>{target_user}</code>\n"
-            f"💰 Сумма к оплате: <b>{product_info['amount']} ₽</b>\n\n"
+            f"💰 Цена: <b>{rub_price} ₽</b> (оплата в USDT по курсу)\n\n"
             f"Нажмите кнопку ниже для безопасной оплаты через CryptoBot:",
             kb
         )
@@ -319,6 +327,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
 
     await state.clear()
     await callback.answer()
+    
 # --- КОНЕЦ МАГАЗИНА ---
 
 @rt.callback_query(F.data == "profile")
