@@ -52,6 +52,8 @@ _test_balances: dict[int, int] = {}
 
 class WithdrawState(StatesGroup):
     waiting_for_amount = State()
+class BuyStarsState(StatesGroup):
+    waiting_for_friend_username = State()
 
 
 def hash_password(password):
@@ -518,26 +520,100 @@ async def crypto_menu(callback: CallbackQuery):
     await callback.answer()
 
 
+# 1. Меню выбора "Купить себе" или "Купить другу" при нажатии на "⭐ Звёзды"
 @rt.callback_query(F.data == "stars")
-async def stars_menu(callback: CallbackQuery):
+async def stars_menu(callback: CallbackQuery, state: FSMContext):
+    await state.clear()
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="50 🌟 (75.00 ₽)", callback_data="star_50"),
-                InlineKeyboardButton(text="100 🌟 (150.00 ₽)", callback_data="star_100"),
+                InlineKeyboardButton(text="⭐ Купить себе", callback_data="buy_stars_self"),
+                InlineKeyboardButton(text="⭐ Купить другу", callback_data="buy_stars_friend")
             ],
-            [
-                InlineKeyboardButton(text="250 🌟 (375.00 ₽)", callback_data="star_250"),
-                InlineKeyboardButton(text="500 🌟 (750.00 ₽)", callback_data="star_500"),
-            ],
-            [InlineKeyboardButton(text="⚙️ Указать своё количество", callback_data="custom_stars")],
-            [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")],
+            [InlineKeyboardButton(text="↩️ Назад в меню", callback_data="back_to_menu")]
         ]
     )
-    text = "⭐ <b>Покупка Telegram-звёзд</b>\n\nЦена: 1.50 ₽ за 1 звезду.\nВыберите количество звёзд:"
+    text = "⭐ <b>Покупка звёзд</b>\n\n• Выберите получателя звёзд:"
     await safe_edit(callback, text, keyboard)
     await callback.answer()
 
+# 2. Если выбрали "Купить себе"
+@rt.callback_query(F.data == "buy_stars_self")
+async def buy_stars_self(callback: CallbackQuery, state: FSMContext):
+    user = callback.from_user
+    target_username = f"@{user.username}" if user.username else f"ID: {user.id}"
+    await state.update_data(target_user=target_username)
+    await show_stars_packages_menu(callback, target_username)
+
+# 3. Если выбрали "Купить другу" — просим ввести юзернейм
+@rt.callback_query(F.data == "buy_stars_friend")
+async def buy_stars_friend(callback: CallbackQuery, state: FSMContext):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="↩️ Назад", callback_data="stars")]
+        ]
+    )
+    text = "⭐ <b>Покупка звёзд</b>\n\n💬 Введите имя пользователя человека (например, <code>@username</code>), которому хотите подарить звёзды:"
+    await safe_edit(callback, text, keyboard)
+    await state.set_state(BuyStarsState.waiting_for_friend_username)
+    await callback.answer()
+
+# 4. Ловим введенный юзернейм друга
+@rt.message(BuyStarsState.waiting_for_friend_username)
+async def process_friend_username(message: Message, state: FSMContext):
+    raw_text = message.text.strip()
+    if not raw_text.startswith("@") and not raw_text.isdigit():
+        raw_text = f"@{raw_text}"
+        
+    await state.update_data(target_user=raw_text)
+    await state.set_state(None) # Сбрасываем состояние ввода
+    
+    # Отправляем сообщение с пакетами звезд
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="⭐ 50 — 75.0 P", callback_data="star_50"),
+                InlineKeyboardButton(text="⭐ 100 — 150.0 P", callback_data="star_100")
+            ],
+            [
+                InlineKeyboardButton(text="⭐ 250 — 375.0 P", callback_data="star_250"),
+                InlineKeyboardButton(text="⭐ 500 — 750.0 P", callback_data="star_500")
+            ],
+            [InlineKeyboardButton(text="⌨️ Указать свое количество", callback_data="custom_stars")],
+            [InlineKeyboardButton(text="↩️ Назад", callback_data="stars")]
+        ]
+    )
+    text = (
+        f"⭐ <b>Покупка звёзд</b>\n"
+        f"👤 <b>Получатель:</b> {raw_text}\n\n"
+        f"• Выберите необходимый пакет или введите числом от 50 до 100.000:"
+    )
+    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+
+# Вспомогательная функция для показа пакетов при покупке себе
+async def show_stars_packages_menu(callback: CallbackQuery, target_user: str):
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="⭐ 50 — 75.0 P", callback_data="star_50"),
+                InlineKeyboardButton(text="⭐ 100 — 150.0 P", callback_data="star_100")
+            ],
+            [
+                InlineKeyboardButton(text="⭐ 250 — 375.0 P", callback_data="star_250"),
+                InlineKeyboardButton(text="⭐ 500 — 750.0 P", callback_data="star_500")
+            ],
+            [InlineKeyboardButton(text="⌨️ Указать свое количество", callback_data="custom_stars")],
+            [InlineKeyboardButton(text="↩️ Назад", callback_data="stars")]
+        ]
+    )
+    text = (
+        f"⭐ <b>Покупка звёзд</b>\n"
+        f"👤 <b>Получатель:</b> {target_user}\n\n"
+        f"• Выберите необходимый пакет или введите числом от 50 до 100.000:"
+    )
+    await safe_edit(callback, text, keyboard)
+    await callback.answer()
+                                  
 
 @rt.callback_query(F.data == "buy_nft")
 async def buy_nft_menu(callback: CallbackQuery):
