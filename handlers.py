@@ -85,12 +85,10 @@ def get_main_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🪙 Крипта", callback_data="crypto"),
-                InlineKeyboardButton(text="⭐ Звёзды и Premium", callback_data="stars")
+                InlineKeyboardButton(text="🪙 Купить Криптовалюту", callback_data="crypto")
             ],
             [
-                InlineKeyboardButton(text="🛒 Купить NFT", callback_data="buy_nft"),
-                InlineKeyboardButton(text="🔑 Аренда NFT", callback_data="rent_nft")
+                InlineKeyboardButton(text="⭐ Telegram Stars & Premium", callback_data="stars")
             ],
             [
                 InlineKeyboardButton(text="📦 Мои заказы", callback_data="my_orders"),
@@ -100,14 +98,16 @@ def get_main_keyboard():
                 InlineKeyboardButton(text="💬 Отзывы", url="https://t.me/твоя_ссылка_на_отзывы"),
                 InlineKeyboardButton(text="👥 Рефералы", callback_data="ref")
             ],
-            [InlineKeyboardButton(text="🆘 Поддержка", callback_data="support")]
+            [
+                InlineKeyboardButton(text="🆘 Поддержка", callback_data="support")
+            ]
         ]
     )
 
 def back_keyboard():
     return InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="🔙 Назад в меню", callback_data="back_to_menu")]
+            [InlineKeyboardButton(text="🔙 Вернуться в меню", callback_data="back_to_menu")]
         ]
     )
 
@@ -149,7 +149,7 @@ async def start_handler(message: Message, state: FSMContext, command: CommandObj
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
 
     text = (
-        f"👋 Салам алейкум, <b>{user_name}</b>! Ты попал в <b>GumStars</b> — бот по продаже криптовалюты, NFT и звёзд ⭐\n\n"
+        f"👋 Салам алейкум, <b>{user_name}</b>! Ты попал в <b>GumStars</b> — лучший бот по покупке криптовалюты и цифровых товаров ⭐\n\n"
         f"💎 Быстро, безопасно и по выгодному курсу.\n\n"
         f"💰 Твой баланс звезд: <b>{balance}</b> ⭐\n"
         f"🔗 Реферальная система:\n"
@@ -164,7 +164,7 @@ async def back_to_menu_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     user_name = html.escape(callback.from_user.first_name or "друг")
     text = (
-        f"👋 Салам алейкум, <b>{user_name}</b>! Ты попал в <b>GumStars</b> — бот по продаже криптовалюты, NFT и звёзд ⭐\n\n"
+        f"👋 Салам алейкум, <b>{user_name}</b>! Ты попал в <b>GumStars</b> — лучший бот по покупке криптовалюты и цифровых товаров ⭐\n\n"
         f"💎 Быстро, безопасно и по выгодному курсу.\n\n"
         f"Выберите нужный раздел в меню ниже 👇"
     )
@@ -176,31 +176,35 @@ async def crypto_menu(callback: CallbackQuery):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
-                InlineKeyboardButton(text="🪙 TON - 125.10 Р", callback_data="buy_ton"),
-                InlineKeyboardButton(text="₿ BTC - 8 155 097.50 Р", callback_data="buy_btc")
+                InlineKeyboardButton(text="🪙 TON — 125.10 ₽", callback_data="buy_ton"),
+                InlineKeyboardButton(text="₿ BTC — 8 155 097.50 ₽", callback_data="buy_btc")
             ],
             [
-                InlineKeyboardButton(text="💵 USDT - 100.57 Р", callback_data="buy_usdt"),
-                InlineKeyboardButton(text="🟣 SOL - 10 268.02 Р", callback_data="buy_sol")
+                InlineKeyboardButton(text="💵 USDT — 100.57 ₽", callback_data="buy_usdt"),
+                InlineKeyboardButton(text="🟣 SOL — 10 268.02 ₽", callback_data="buy_sol")
             ],
-            [InlineKeyboardButton(text="⭐ Указать свою монету", callback_data="custom_crypto")],
-            [InlineKeyboardButton(text="🔙 Назад в меню", callback_data="back_to_menu")]
+            [
+                InlineKeyboardButton(text="🔍 Указать свою монету", callback_data="custom_crypto")
+            ],
+            [
+                InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")
+            ]
         ]
     )
-    text = "🪙 <b>Криптовалюта</b>\n\nОплата в рублях (Р). Выберите монету для покупки:"
+    text = "🪙 <b>Криптовалюта</b>\n\nОплата в рублях (₽). Выберите монету для покупки:"
     await safe_edit(callback, text, keyboard)
     await callback.answer()
 
-# --- НОВЫЙ МАГАЗИН STARS & PREMIUM ---
+# --- МАГАЗИН STARS & PREMIUM ---
 @rt.callback_query(F.data == "stars")
 async def stars_menu_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     kb = InlineKeyboardMarkup(inline_keyboard=[
-        [InlineKeyboardButton(text="⭐ Купить Звёзды", callback_data="cat_stars")],
-        [InlineKeyboardButton(text="💎 Купить TG Premium", callback_data="cat_premium")],
-        [InlineKeyboardButton(text="🔙 Назад в меню", callback_data="back_to_menu")]
+        [InlineKeyboardButton(text="⭐ Купить Telegram Stars", callback_data="cat_stars")],
+        [InlineKeyboardButton(text="💎 Купить Telegram Premium", callback_data="cat_premium")],
+        [InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")]
     ])
-    await safe_edit(callback, "👋 <b>Магазин Telegram Stars & Premium</b>\n\nВыбери, что хочешь приобрести:", kb)
+    await safe_edit(callback, "✨ <b>Магазин Telegram Stars & Premium</b>\n\nВыберите категорию товара:", kb)
     await callback.answer()
 
 @rt.callback_query(F.data.in_({"cat_stars", "cat_premium"}))
@@ -213,7 +217,7 @@ async def process_category(callback: CallbackQuery, state: FSMContext):
         [InlineKeyboardButton(text="👥 Другу (по @username)", callback_data="recipient_friend")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="stars")]
     ])
-    await safe_edit(callback, "Кому отправляем заказ?", kb)
+    await safe_edit(callback, "🎯 <b>Кому отправляем заказ?</b>", kb)
     await state.set_state(BuySteps.choosing_recipient)
     await callback.answer()
 
@@ -229,7 +233,7 @@ async def recipient_self(callback: CallbackQuery, state: FSMContext):
 @rt.callback_query(BuySteps.choosing_recipient, F.data == "recipient_friend")
 async def recipient_friend(callback: CallbackQuery, state: FSMContext):
     kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="cat_stars")]])
-    await callback.message.edit_text("✏️ Отправь в чат **@username** получателя (например, `@durov`):", reply_markup=kb, parse_mode="Markdown")
+    await callback.message.edit_text("✏️ Отправьте в чат <b>@username</b> получателя (например, <code>@durov</code>):", reply_markup=kb, parse_mode="HTML")
     await state.set_state(BuySteps.entering_username)
     await callback.answer()
 
@@ -240,11 +244,11 @@ async def process_username_input(message: Message, state: FSMContext):
         username = f"@{username}"
         
     if len(username) < 4:
-        await message.answer("⚠️ Неверный формат юзернейма. Попробуй ещё раз:")
+        await message.answer("⚠️ Неверный формат юзернейма. Попробуйте ещё раз:")
         return
         
     await state.update_data(target_user=username)
-    await message.answer(f"✅ Получатель сохранен: **{username}**", parse_mode="Markdown")
+    await message.answer(f"✅ Получатель сохранен: <b>{username}</b>", parse_mode="HTML")
     await show_products(message, state)
 
 async def show_products(message: Message, state: FSMContext):
@@ -258,7 +262,7 @@ async def show_products(message: Message, state: FSMContext):
             [InlineKeyboardButton(text="⭐ 250 Stars — 340 ₽", callback_data="prod_stars_250")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="stars")]
         ])
-        text = "📦 <b>Выбери пакет звёзд:</b>"
+        text = "📦 <b>Выберите пакет звёзд:</b>"
     else:
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💎 3 месяца — 1 050 ₽", callback_data="prod_prem_3")],
@@ -266,13 +270,13 @@ async def show_products(message: Message, state: FSMContext):
             [InlineKeyboardButton(text="💎 12 месяцев — 2 450 ₽", callback_data="prod_prem_12")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="stars")]
         ])
-        text = "📦 <b>Выбери срок подписки TG Premium:</b>"
+        text = "📦 <b>Выберите срок подписки TG Premium:</b>"
 
     await state.set_state(BuySteps.choosing_product)
     if isinstance(message, CallbackQuery):
         await safe_edit(message, text, kb)
     else:
-        await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+        await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 @rt.callback_query(BuySteps.choosing_product, F.data.startswith("prod_"))
 async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
@@ -297,55 +301,42 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💳 Оплатить счет", url=invoice.bot_invoice_url)],
             [InlineKeyboardButton(text="🔄 Проверить оплату", callback_data=f"check_{invoice.invoice_id}")],
-            [InlineKeyboardButton(text="🔙 В меню", callback_data="back_to_menu")]
+            [InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")]
         ])
         
         await safe_edit(
             callback,
-            f"🛒 <b>Заказ сформирован!</b>\n\n"
+            f"🛒 <b>Заказ успешно сформирован!</b>\n\n"
             f"📦 Товар: <b>{product_info['title']}</b>\n"
             f"👤 Получатель: <code>{target_user}</code>\n"
             f"💰 Сумма к оплате: <b>{product_info['amount']} ₽</b>\n\n"
-            f"Нажми кнопку ниже для оплаты через CryptoBot:",
+            f"Нажмите кнопку ниже для безопасной оплаты через CryptoBot:",
             kb
         )
     except Exception as e:
         logger.error(f"Ошибка создания счета CryptoBot: {e}")
-        await callback.message.answer("⚠️ Произошла ошибка при создании счета на оплату. Попробуй позже.")
+        await callback.message.answer("⚠️ Произошла ошибка при создании счета на оплату. Попробуйте позже.")
 
     await state.clear()
     await callback.answer()
-# --- КОНЕЦ НОВОГО МАГАЗИНА ---
-
-@rt.callback_query(F.data == "buy_nft")
-async def buy_nft_menu(callback: CallbackQuery):
-    text = "🛒 <b>Покупка NFT</b>\n\nДанный раздел скоро будет добавлен."
-    await safe_edit(callback, text, back_keyboard())
-    await callback.answer()
-
-@rt.callback_query(F.data == "rent_nft")
-async def rent_nft_menu(callback: CallbackQuery):
-    text = "🔑 <b>Аренда NFT</b>\n\nДанный раздел скоро будет добавлен."
-    await safe_edit(callback, text, back_keyboard())
-    await callback.answer()
+# --- КОНЕЦ МАГАЗИНА ---
 
 @rt.callback_query(F.data == "profile")
 async def profile_menu(callback: CallbackQuery):
     user_id = callback.from_user.id
     user_name = html.escape(callback.from_user.first_name or "друг")
     text = (
-        f"👤 <b>ПРОФИЛЬ</b>\n\n"
-        f"👤 Имя: {user_name}\n"
-        f"🆔 ID: <code>{user_id}</code>\n"
-        f"⭐ Баланс звезд: {get_balance(user_id)}\n"
-        f"📦 Заказов: 0\n"
-        f"💰 Сумма покупок: 0.00 Р\n"
-        f"📜 История покупок: нет\n"
+        f"👤 <b>ЛИЧНЫЙ КАБИНЕТ</b>\n\n"
+        f"• Имя: <b>{user_name}</b>\n"
+        f"• ID: <code>{user_id}</code>\n"
+        f"• Баланс звезд: <b>{get_balance(user_id)}</b> ⭐\n"
+        f"• Активных заказов: <b>0</b>\n"
+        f"• Сумма покупок: <b>0.00 ₽</b>\n"
     )
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref")],
-            [InlineKeyboardButton(text="🔙 Назад в меню", callback_data="back_to_menu")]
+            [InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")]
         ]
     )
     await safe_edit(callback, text, keyboard)
@@ -369,15 +360,15 @@ async def ref_menu(callback: CallbackQuery, state: FSMContext):
 
     text = (
         f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-        f"Приглашайте друзей и получайте <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 500 Р.\n\n"
-        f"🔗 Ваша ссылка:\n<code>{ref_link}</code>\n\n"
+        f"Приглашайте друзей и получайте <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 500 ₽.\n\n"
+        f"🔗 Ваша реферальная ссылка:\n<code>{ref_link}</code>\n\n"
         f"👥 Приглашено друзей: <b>{referrals}</b>\n"
         f"⭐ Доступно на балансе: <b>{balance}</b> ⭐\n"
     )
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
-            [InlineKeyboardButton(text="🔙 Назад в меню", callback_data="back_to_menu")]
+            [InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")]
         ]
     )
     await safe_edit(callback, text, keyboard)
@@ -387,7 +378,7 @@ async def ref_menu(callback: CallbackQuery, state: FSMContext):
 async def support_callback(callback: CallbackQuery, state: FSMContext):
     await safe_edit(
         callback,
-        "🆘 <b>Поддержка</b>\n\nНапишите вашу проблему или вопрос — мы постараемся ответить как можно скорее.",
+        "🆘 <b>Служба поддержки</b>\n\nНапишите вашу проблему или вопрос — мы постараемся ответить максимально быстро.",
         back_keyboard()
     )
     await state.set_state(user_states.waiting_for_support)
@@ -402,7 +393,7 @@ async def process_support_message(message: Message, state: FSMContext, bot):
 
     admin_text = (
         f"📩 <b>Новое обращение в поддержку!</b>\n"
-        f" от: {user_name} ({username})\n"
+        f"👤 От: {user_name} ({username})\n"
         f"🆔 ID: <code>{user_id}</code>\n\n"
         f"💬 Сообщение:\n{body}"
     )
@@ -459,7 +450,7 @@ async def process_withdraw_amount(message: Message, state: FSMContext):
 
     await message.answer(
         f"✅ <b>Запрос на вывод {amount} ⭐ успешно создан!</b>\n\n"
-        f"⏳ Ожидайте зачисления звезд на ваш аккаунт. Оставшийся баланс: {new_balance} ⭐",
+        f"⏳ Ожидайте зачисления звезд. Оставшийся баланс: <b>{new_balance}</b> ⭐",
         parse_mode="HTML"
     )
 
@@ -474,4 +465,3 @@ async def process_withdraw_amount(message: Message, state: FSMContext):
         )
     except Exception:
         logger.exception("Не удалось отправить уведомление админу (ID-%s)", ADMIN_ID)
-    
