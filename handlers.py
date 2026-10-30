@@ -140,10 +140,9 @@ async def start_handler(message: Message, state: FSMContext, command: CommandObj
 
     is_new = not bot_db.get_user(user_id)
     if is_new:
-        if referrer_id and not bot_db.get_user(referrer_id):
-            referrer_id = None
+        if referrer_id:
+            bot_db.add_user(referrer_id)  # если базу стёрло, восстанавливаем строку пригласившего
         bot_db.add_user(user_id, referrer_id)
-
         if referrer_id:
             try:
                 await message.bot.send_message(
