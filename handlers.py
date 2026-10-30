@@ -7,6 +7,8 @@ import string
 import csv
 import aiofiles
 import hashlib
+import uuid
+import aiohttp
 
 from aiogram import F, Router, types
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, InputFile, LabeledPrice, PreCheckoutQuery
@@ -32,6 +34,9 @@ ADMIN_IDS = {int(x) for x in ALLOWED_ADMIN_IDS}
 ADMIN_ID = 7461353872
 
 cryptopay = AioCryptoPay(token=os.getenv("CRYPTO_BOT_TOKEN"), network=Networks.MAIN_NET)
+FRAGMENT_API_URL = "https://v1.fragmentapi.com/api/v1/partner"
+FRAGMENT_API_KEY = os.getenv("FRAGMENT_API_KEY", "")
+
 rt = Router()
 bot_db = BotDB(DATABASE)
 
@@ -331,6 +336,131 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
 
     await state.clear()
     await callback.answer()
+
+# --- ПРОВЕРКА ОПЛАТЫ И АВТОВЫДАЧА ЧЕРЕЗ FRAGMENT API ---
+@rt.callback_query(F.data.startswith("check_"))
+async def check_payment_handler(callback: CallbackQuery):
+    try:
+        invoice_id = int(callback.data.split("_")[1])
+    except (IndexError, ValueError):
+        await callback.answer("❌ Неверный ID счета.", show_alert=True)
+        return
+
+    try:
+        invoices = await cryptopay.get_invoices(invoice_ids=invoice_id)
+        if not invoices:
+            await callback.answer("❌ Счет не найден в системе.", show_alert=True)
+            return
+            
+        invoice = invoices[0]
+        
+        if invoice.status == 'paid':
+            payload = invoice.payload or ""
+            parts = payload.split(":", 1)
+            product_key = parts[0] if len(parts) > 0 else "unknown"
+            target_user = parts[1] if len(parts) > 1 else f"@{callback.from_user.username}"
+            
+            product_info = PRICES.get(product_key, {"title": "Цифровой товар", "type": "unknown"})
+            product_type = product_info.get("type")
+            
+            delivery_success = False
+            error_message = ""
+            
+            # Автоматическая выдача звезд через Fragment API
+            if product_type == "stars":
+                quantity = product_info.get("quantity", 50)
+                clean_username = target_user.lstrip("@")
+                
+                async with aiohttp.ClientSession() as session:
+                    headers = {
+                        "API-Key": FRAGMENT_API_KEY,
+                        "Content-Type": "application/json"
+                    }
+                    
+                    # Шаг 1: Поиск получателя (Resolve recipient)
+                    search_url = f"{FRAGMENT_API_URL}/star/recipient/search?username={clean_username}&quantity={quantity}"
+                    async with session.get(search_url, headers=headers) as resp:
+                        if resp.status == 200:
+                            search_data = await resp.json()
+                            recipient_hash = search_data.get("recipient_hash") or search_data.get("result", {}).get("recipient_hash")
+                            
+                            if recipient_hash:
+                                # Шаг 2: Создание заказа (Create order)
+                                order_url = f"{FRAGMENT_API_URL}/orders/star"
+                                idempotency_key = str(uuid.uuid4())
+                                order_headers = {
+                                    **headers,
+                                    "Idempotency-Key": idempotency_key
+                                }
+                                order_payload = {
+                                    "username": clean_username,
+                                    "recipient_hash": recipient_hash,
+                                    "quantity": quantity,
+                                    "wallet_type": "TON"
+                                }
+                                
+                                async with session.post(order_url, headers=order_headers, json=order_payload) as order_resp:
+                                    if order_resp.status in (200, 202):
+                                        delivery_success = True
+                                    else:
+                                        err_text = await order_resp.text()
+                                        error_message = f"API Order Error: {err_text}"
+                            else:
+                                error_message = "Recipient hash not found in response."
+                        else:
+                            err_text = await resp.text()
+                            error_message = f"API Search Error: {err_text}"
+            
+            # Сообщение покупателю
+            if delivery_success:
+                await safe_edit(
+                    callback,
+                    f"✅ <b>Оплата успешно получена, и звёзды отправлены!</b>\n\n"
+                    f"📦 Товар: <b>{product_info['title']}</b>\n"
+                    f"👤 Получатель: <code>{target_user}</code>\n\n"
+                    f"Подарок уже доставлен на ваш аккаунт!",
+                    InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")]
+                    ])
+                )
+            else:
+                # Если это Premium (или произошла ошибка автовыдачи звезд), переводим в полуавтоматику с уведомлением админу
+                await safe_edit(
+                    callback,
+                    f"✅ <b>Оплата успешно получена!</b>\n\n"
+                    f"📦 Товар: <b>{product_info['title']}</b>\n"
+                    f"👤 Получатель: <code>{target_user}</code>\n\n"
+                    f"Заказ принят в обработку. Скоро всё будет доставлено!",
+                    InlineKeyboardMarkup(inline_keyboard=[
+                        [InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")]
+                    ])
+                )
+            
+            # Уведомление администратору
+            buyer = callback.from_user
+            buyer_label = f"@{buyer.username}" if buyer.username else html.escape(buyer.first_name or "без имени")
+            status_desc = "🟢 Автоматически отправлено через Fragment API" if delivery_success else f"🟡 Требует ручной выдачи (Ошибка/Премиум: {error_message})"
+            
+            admin_text = (
+                f"🔥 <b>УСПЕШНАЯ ОПЛАТА!</b>\n\n"
+                f"📦 Товар: <b>{product_info['title']}</b>\n"
+                f"👤 Покупатель: {buyer_label} (ID: <code>{buyer.id}</code>)\n"
+                f"🎯 Получатель: <code>{target_user}</code>\n"
+                f"💰 Сумма: <b>{invoice.amount} {invoice.asset}</b>\n"
+                f"📊 Статус: <b>{status_desc}</b>\n"
+                f"🆔 ID счета: <code>{invoice_id}</code>"
+            )
+            try:
+                await callback.bot.send_message(ADMIN_ID, admin_text, parse_mode="HTML")
+            except Exception:
+                logger.exception("Не удалось отправить уведомление админу об оплате")
+                
+        else:
+            await callback.answer("⏳ Счет еще не оплачен. Попробуйте нажать кнопку чуть позже после оплаты.", show_alert=True)
+            
+    except Exception as e:
+        logger.error(f"Ошибка проверки счета CryptoBot: {e}")
+        await callback.answer("⚠️ Произошла ошибка при проверке счета. Попробуйте позже.", show_alert=True)
 # --- КОНЕЦ МАГАЗИНА ---
 
 @rt.callback_query(F.data == "profile")
