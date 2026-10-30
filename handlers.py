@@ -1,12 +1,14 @@
 import csv
 import hashlib
+import os
 import html
 import logging
 import random
 import re
 import string
-
 import aiofiles
+
+from aiocryptopay import AioCryptoPay, Networks
 from aiogram import F, Router, types
 from aiogram.exceptions import TelegramBadRequest
 from aiogram.filters import Command, CommandObject
@@ -44,6 +46,7 @@ REFERRAL_MIN_STARS = 350
 ADMIN_IDS = {int(x) for x in ALLOWED_ADMIN_IDS}
 ADMIN_ID = 7461353872
 
+cryptopay = AioCryptoPay(token=os.getenv("CRYPTO_BOT_TOKEN"), network=Networks.MAIN_NET)
 rt = Router()
 bot_db = BotDB(DATABASE)
 
@@ -889,3 +892,140 @@ async def dbcheck(message: Message, command: CommandObject):
     except Exception as e:
         cnt = f"ERROR: {e!r}"
     await message.answer(f"user_id: {uid}\nстрока в БД: {row}\nпришло рефералов: {cnt}")
+
+PRICES = {
+    "prod_stars_50": {"amount": 72, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
+    "prod_stars_100": {"amount": 140, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
+    "prod_stars_250": {"amount": 340, "title": "250 Telegram Stars", "type": "stars", "quantity": 250},
+    "prod_prem_3": {"amount": 1050, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
+    "prod_prem_6": {"amount": 1400, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
+    "prod_prem_12": {"amount": 2450, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
+}
+
+class BuySteps(StatesGroup):
+    choosing_category = State()
+    choosing_recipient = State()
+    entering_username = State()
+    choosing_product = State()
+
+@rt.message(CommandStart())
+async def cmd_start(message: Message, state: FSMContext):
+    await state.clear()
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⭐ Купить Звёзды", callback_data="cat_stars")],
+        [InlineKeyboardButton(text="💎 Купить TG Premium", callback_data="cat_premium")]
+    ])
+    await message.answer(
+        "👋 **Добро пожаловать в магазин Telegram Stars & Premium!**\n\nВыбери, что хочешь приобрести:",
+        reply_markup=kb,
+        parse_mode="Markdown"
+    )
+
+@rt.callback_query(F.data.in_({"cat_stars", "cat_premium"}))
+async def process_category(callback: CallbackQuery, state: FSMContext):
+    category = "stars" if callback.data == "cat_stars" else "premium"
+    await state.update_data(category=category)
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="👤 Себе", callback_data="recipient_self")],
+        [InlineKeyboardButton(text="👥 Другу (по @username)", callback_data="recipient_friend")]
+    ])
+    await callback.message.edit_text("Кому отправляем заказ?", reply_markup=kb)
+    await state.set_state(BuySteps.choosing_recipient)
+    await callback.answer()
+
+@rt.callback_query(BuySteps.choosing_recipient, F.data == "recipient_self")
+async def recipient_self(callback: CallbackQuery, state: FSMContext):
+    user_target = callback.from_user.username or str(callback.from_user.id)
+    if not user_target.startswith("@") and not user_target.isdigit():
+        user_target = f"@{user_target}"
+    await state.update_data(target_user=user_target)
+    await show_products(callback.message, state)
+    await callback.answer()
+
+@rt.callback_query(BuySteps.choosing_recipient, F.data == "recipient_friend")
+async def recipient_friend(callback: CallbackQuery, state: FSMContext):
+    await callback.message.edit_text("✏️ Отправь в чат **@username** получателя (например, `@durov`):", parse_mode="Markdown")
+    await state.set_state(BuySteps.entering_username)
+    await callback.answer()
+
+@rt.message(BuySteps.entering_username)
+async def process_username_input(message: Message, state: FSMContext):
+    username = message.text.strip()
+    if not username.startswith("@"):
+        username = f"@{username}"
+        
+    if len(username) < 4:
+        await message.answer("⚠️ Неверный формат юзернейма. Попробуй ещё раз:")
+        return
+        
+    await state.update_data(target_user=username)
+    await message.answer(f"✅ Получатель сохранен: **{username}**", parse_mode="Markdown")
+    await show_products(message, state)
+
+async def show_products(message: Message, state: FSMContext):
+    data = await state.get_data()
+    category = data.get("category")
+    
+    if category == "stars":
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="⭐ 50 Stars — 72 ₽", callback_data="prod_stars_50")],
+            [InlineKeyboardButton(text="⭐ 100 Stars — 140 ₽", callback_data="prod_stars_100")],
+            [InlineKeyboardButton(text="⭐ 250 Stars — 340 ₽", callback_data="prod_stars_250")]
+        ])
+        text = "📦 **Выбери пакет звёзд:**"
+    else:
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💎 3 месяца — 1 050 ₽", callback_data="prod_prem_3")],
+            [InlineKeyboardButton(text="💎 6 месяцев — 1 400 ₽", callback_data="prod_prem_6")],
+            [InlineKeyboardButton(text="💎 12 месяцев — 2 450 ₽", callback_data="prod_prem_12")]
+        ])
+        text = "📦 **Выбери срок подписки TG Premium:**"
+
+    await state.set_state(BuySteps.choosing_product)
+    if isinstance(message, CallbackQuery):
+        await message.edit_text(text, reply_markup=kb, parse_mode="Markdown")
+    else:
+        await message.answer(text, reply_markup=kb, parse_mode="Markdown")
+
+@rt.callback_query(BuySteps.choosing_product, F.data.startswith("prod_"))
+async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
+    product_key = callback.data
+    product_info = PRICES.get(product_key)
+    
+    if not product_info:
+        await callback.answer("❌ Ошибка товара!", show_alert=True)
+        return
+
+    data = await state.get_data()
+    target_user = data.get("target_user")
+    
+    try:
+        invoice = await cryptopay.create_invoice(
+            asset='RUB',
+            amount=product_info["amount"],
+            description=f"Покупка {product_info['title']} для {target_user}",
+            payload=f"{product_key}:{target_user}"
+        )
+        
+        kb = InlineKeyboardMarkup(inline_keyboard=[
+            [InlineKeyboardButton(text="💳 Оплатить счет", url=invoice.bot_invoice_url)],
+            [InlineKeyboardButton(text="🔄 Проверить оплату", callback_data=f"check_{invoice.invoice_id}")]
+        ])
+        
+        await callback.message.edit_text(
+            f"🛒 **Заказ сформирован!**\n\n"
+            f"📦 Товар: <b>{product_info['title']}</b>\n"
+            f"👤 Получатель: <code>{target_user}</code>\n"
+            f"💰 Сумма к оплате: <b>{product_info['amount']} ₽</b>\n\n"
+            f"Нажми кнопку ниже для оплаты через CryptoBot:",
+            reply_markup=kb,
+            parse_mode="HTML"
+        )
+    except Exception as e:
+        logging.error(f"Ошибка создания счета CryptoBot: {e}")
+        await callback.message.answer("⚠️ Произошла ошибка при создании счета на оплату. Попробуй позже.")
+
+    await state.clear()
+    await callback.answer()
+    
