@@ -6,6 +6,7 @@ import random
 import string
 import csv
 import aiofiles
+import hashlib
 
 from aiogram import F, Router, types
 from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, InputFile, LabeledPrice, PreCheckoutQuery
@@ -46,9 +47,13 @@ class BuySteps(StatesGroup):
     choosing_product = State()
 
 PRICES = {
-    "prod_stars_50": {"amount": 72, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
-    "prod_stars_100": {"amount": 140, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
-    "prod_stars_250": {"amount": 340, "title": "250 Telegram Stars", "type": "stars", "quantity": 250},
+    "prod_stars_50": {"amount": 74, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
+    "prod_stars_100": {"amount": 147, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
+    "prod_stars_150": {"amount": 221, "title": "150 Telegram Stars", "type": "stars", "quantity": 150},
+    "prod_stars_250": {"amount": 368, "title": "250 Telegram Stars", "type": "stars", "quantity": 250},
+    "prod_stars_500": {"amount": 735, "title": "500 Telegram Stars", "type": "stars", "quantity": 500},
+    "prod_stars_1000": {"amount": 1470, "title": "1000 Telegram Stars", "type": "stars", "quantity": 1000},
+    "prod_stars_2500": {"amount": 3675, "title": "2500 Telegram Stars", "type": "stars", "quantity": 2500},
     "prod_prem_3": {"amount": 1050, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
     "prod_prem_6": {"amount": 1400, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
     "prod_prem_12": {"amount": 2450, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
@@ -77,7 +82,7 @@ def get_referrals_count(user_id: int) -> int:
 async def safe_edit(callback: CallbackQuery, text: str, reply_markup=None) -> None:
     try:
         await callback.message.edit_text(text, reply_markup=reply_markup, parse_mode="HTML")
-    except TelegramBadRequest as e:
+    except Exception as e:
         if "message is not modified" not in str(e):
             raise
 
@@ -154,7 +159,7 @@ async def start_handler(message: Message, state: FSMContext, command: CommandObj
         f"💰 Твой баланс звезд: <b>{balance}</b> ⭐\n"
         f"🔗 Реферальная система:\n"
         f"• Приглашай друзей по своей ссылке: <code>{ref_link}</code>\n"
-        f"• Когда твой друг купит товар на сумму от 500 Р, тебе на баланс автоматически зачислится <b>{REFERRAL_BONUS}</b> ⭐!\n\n"
+        f"• Когда твой друг купит товар на сумму от 500 ₽, тебе на баланс автоматически зачислится <b>{REFERRAL_BONUS}</b> ⭐!\n\n"
         f"Выберите нужный раздел в меню ниже 👇"
     )
     await message.answer(text, reply_markup=get_main_keyboard(), parse_mode="HTML")
@@ -257,12 +262,16 @@ async def show_products(message: Message, state: FSMContext):
     
     if category == "stars":
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ 50 Stars — 72 ₽", callback_data="prod_stars_50")],
-            [InlineKeyboardButton(text="⭐ 100 Stars — 140 ₽", callback_data="prod_stars_100")],
-            [InlineKeyboardButton(text="⭐ 250 Stars — 340 ₽", callback_data="prod_stars_250")],
+            [InlineKeyboardButton(text="⭐ 50 звезд — 74 ₽", callback_data="prod_stars_50")],
+            [InlineKeyboardButton(text="⭐ 100 звезд — 147 ₽", callback_data="prod_stars_100")],
+            [InlineKeyboardButton(text="⭐ 150 звезд — 221 ₽", callback_data="prod_stars_150")],
+            [InlineKeyboardButton(text="⭐ 250 звезд — 368 ₽", callback_data="prod_stars_250")],
+            [InlineKeyboardButton(text="⭐ 500 звезд — 735 ₽", callback_data="prod_stars_500")],
+            [InlineKeyboardButton(text="⭐ 1000 звезд — 1470 ₽", callback_data="prod_stars_1000")],
+            [InlineKeyboardButton(text="⭐ 2500 звезд — 3675 ₽", callback_data="prod_stars_2500")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="stars")]
         ])
-        text = "📦 <b>Выберите пакет звёзд:</b>"
+        text = "📦 <b>Выберите необходимый пакет звёзд:</b>"
     else:
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="💎 3 месяца — 1 050 ₽", callback_data="prod_prem_3")],
@@ -291,14 +300,9 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     target_user = data.get("target_user", f"@{callback.from_user.username}")
     
     rub_price = product_info["amount"]
-    
-    # Примерный расчет в USDT (можно скорректировать под актуальный курс, например 1 USDT ≈ 95-100 ₽, 
-    # либо передавать рублевый эквивалент в описании)
-    # Для примера берем фиксированный условный курс или пишем сумму в описании для ясности:
-    usdt_amount = round(rub_price / 95.0, 2) # Укажи актуальный курс обмена или оставь расчет
+    usdt_amount = round(rub_price / 98.0, 2)
 
     try:
-        # Создаем счет в USDT, так как рублевые счета требуют активированного фиатного мерчанта в CryptoBot
         invoice = await cryptopay.create_invoice(
             asset='USDT',
             amount=usdt_amount,
@@ -317,7 +321,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
             f"🛒 <b>Заказ успешно сформирован!</b>\n\n"
             f"📦 Товар: <b>{product_info['title']}</b>\n"
             f"👤 Получатель: <code>{target_user}</code>\n"
-            f"💰 Цена: <b>{rub_price} ₽</b> (оплата в USDT по курсу)\n\n"
+            f"💰 Цена: <b>{rub_price} ₽</b>\n\n"
             f"Нажмите кнопку ниже для безопасной оплаты через CryptoBot:",
             kb
         )
@@ -327,7 +331,6 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
 
     await state.clear()
     await callback.answer()
-    
 # --- КОНЕЦ МАГАЗИНА ---
 
 @rt.callback_query(F.data == "profile")
@@ -473,4 +476,4 @@ async def process_withdraw_amount(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
     except Exception:
-        logger.exception("Не удалось отправить уведомление админу (ID-%s)", ADMIN_ID)
+        logger.exception("Не удалось отправить уведомление адми
