@@ -124,29 +124,25 @@ async def start_handler(message: Message, state: FSMContext, command: CommandObj
     user_id = message.from_user.id
     user_name = html.escape(message.from_user.first_name or "друг")
 
-        if is_new:
-        if referrer_id:
-            bot_db.add_user(referrer_id)  # если базу стёрло, восстанавливаем строку пригласившего
-        bot_db.add_user(user_id, referrer_id)
-        if user_id == ADMIN_ID:
-            bot_db.update_balance(user_id, 999)  # тестовые звёзды админу, только при первом входе
-        
-        
+    # разбираем /start ref_123
     referrer_id = None
     args = command.args if command else None
     if args and args.startswith("ref_"):
         try:
             parsed_id = int(args[4:])
-            if parsed_id != user_id:
+            if parsed_id != user_id:  # защита от само-реферала
                 referrer_id = parsed_id
         except ValueError:
             pass
 
+    # реферал засчитывается только новому пользователю
     is_new = not bot_db.get_user(user_id)
     if is_new:
         if referrer_id:
-            bot_db.add_user(referrer_id)  # если базу стёрло, восстанавливаем строку пригласившего
+            bot_db.add_user(referrer_id)  # восстанавливаем строку пригласившего, если базу стёрло
         bot_db.add_user(user_id, referrer_id)
+        if user_id == ADMIN_ID:
+            bot_db.update_balance(user_id, 999)  # тестовые звёзды админу, только при первом входе
         if referrer_id:
             try:
                 await message.bot.send_message(
