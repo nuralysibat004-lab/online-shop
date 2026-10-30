@@ -11,7 +11,10 @@ import uuid
 import aiohttp
 
 from aiogram import F, Router, types
-from aiogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, InputFile, LabeledPrice, PreCheckoutQuery
+from aiogram.types import (
+    Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, 
+    ReplyKeyboardMarkup, KeyboardButton, InputFile, LabeledPrice, PreCheckoutQuery
+)
 from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
@@ -40,8 +43,6 @@ FRAGMENT_API_KEY = os.getenv("FRAGMENT_API_KEY", "")
 rt = Router()
 bot_db = BotDB(DATABASE)
 
-_test_balances: dict[int, int] = {}
-
 class WithdrawState(StatesGroup):
     waiting_for_amount = State()
 
@@ -64,18 +65,12 @@ PRICES = {
     "prod_prem_12": {"amount": 2450, "usdt": 30.42, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
 }
 
-def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
-
 def get_balance(user_id: int) -> int:
     user_data = bot_db.get_user(user_id)
     return user_data[0] if user_data and user_data[0] is not None else 0
 
 def set_balance(user_id: int, new_balance: int) -> None:
     bot_db.update_balance(user_id, new_balance)
-
-def add_to_balance(user_id: int, amount: int) -> None:
-    bot_db.add_balance(user_id, amount)
 
 def get_referrals_count(user_id: int) -> int:
     try:
@@ -91,27 +86,15 @@ async def safe_edit(callback: CallbackQuery, text: str, reply_markup=None) -> No
         if "message is not modified" not in str(e):
             raise
 
-def get_main_keyboard():
-    return InlineKeyboardMarkup(
-        inline_keyboard=[
-            [
-                InlineKeyboardButton(text="🪙 Купить Криптовалюту", callback_data="crypto")
-            ],
-            [
-                InlineKeyboardButton(text="⭐ Telegram Stars & Premium", callback_data="stars")
-            ],
-            [
-                InlineKeyboardButton(text="📦 Мои заказы", callback_data="my_orders"),
-                InlineKeyboardButton(text="👤 Профиль", callback_data="profile")
-            ],
-            [
-                InlineKeyboardButton(text="💬 Отзывы", url="https://t.me/твоя_ссылка_на_отзывы"),
-                InlineKeyboardButton(text="👥 Рефералы", callback_data="ref")
-            ],
-            [
-                InlineKeyboardButton(text="🆘 Поддержка", callback_data="support")
-            ]
-        ]
+def get_main_reply_keyboard():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="🪙 Криптовалюта"), KeyboardButton(text="⭐ Купить звёзды")],
+            [KeyboardButton(text="📦 Мои заказы"), KeyboardButton(text="👤 Профиль")],
+            [KeyboardButton(text="👥 Рефералы"), KeyboardButton(text="🆘 Поддержка")]
+        ],
+        resize_keyboard=True,
+        input_field_placeholder="Выберите пункт меню 👇"
     )
 
 def back_keyboard():
@@ -167,7 +150,7 @@ async def start_handler(message: Message, state: FSMContext, command: CommandObj
         f"• Когда твой друг купит товар на сумму от 500 ₽, тебе на баланс автоматически зачислится <b>{REFERRAL_BONUS}</b> ⭐!\n\n"
         f"Выберите нужный раздел в меню ниже 👇"
     )
-    await message.answer(text, reply_markup=get_main_keyboard(), parse_mode="HTML")
+    await message.answer(text, reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
 
 @rt.callback_query(F.data == "back_to_menu")
 async def back_to_menu_callback(callback: CallbackQuery, state: FSMContext):
@@ -178,8 +161,101 @@ async def back_to_menu_callback(callback: CallbackQuery, state: FSMContext):
         f"💎 Быстро, безопасно и по выгодному курсу.\n\n"
         f"Выберите нужный раздел в меню ниже 👇"
     )
-    await safe_edit(callback, text, get_main_keyboard())
+    try:
+        await callback.message.delete()
+    except Exception:
+        pass
+    await callback.message.answer(text, reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
     await callback.answer()
+
+@rt.message(F.text == "🪙 Криптовалюта")
+async def text_crypto(message: Message, state: FSMContext):
+    await state.clear()
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [
+                InlineKeyboardButton(text="🪙 TON — 125.10 ₽", callback_data="buy_ton"),
+                InlineKeyboardButton(text="₿ BTC — 8 155 097.50 ₽", callback_data="buy_btc")
+            ],
+            [
+                InlineKeyboardButton(text="💵 USDT — 100.57 ₽", callback_data="buy_usdt"),
+                InlineKeyboardButton(text="🟣 SOL — 10 268.02 ₽", callback_data="buy_sol")
+            ],
+            [
+                InlineKeyboardButton(text="🔍 Указать свою монету", callback_data="custom_crypto")
+            ],
+            [
+                InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")
+            ]
+        ]
+    )
+    await message.answer("🪙 <b>Криптовалюта</b>\n\nОплата в рублях (₽). Выберите монету для покупки:", reply_markup=keyboard, parse_mode="HTML")
+
+@rt.message(F.text == "⭐ Купить звёзды")
+async def text_stars(message: Message, state: FSMContext):
+    await state.clear()
+    kb = InlineKeyboardMarkup(inline_keyboard=[
+        [InlineKeyboardButton(text="⭐ Купить Telegram Stars", callback_data="cat_stars")],
+        [InlineKeyboardButton(text="💎 Купить Telegram Premium", callback_data="cat_premium")],
+        [InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")]
+    ])
+    await message.answer("✨ <b>Магазин Telegram Stars & Premium</b>\n\nВыберите категорию товара:", reply_markup=kb, parse_mode="HTML")
+
+@rt.message(F.text == "📦 Мои заказы")
+async def text_orders(message: Message, state: FSMContext):
+    await state.clear()
+    await message.answer("📦 <b>Мои заказы</b>\n\nУ вас пока нет активных или завершённых заказов.", parse_mode="HTML")
+
+@rt.message(F.text == "👤 Профиль")
+async def text_profile(message: Message, state: FSMContext):
+    await state.clear()
+    user_id = message.from_user.id
+    user_name = html.escape(message.from_user.first_name or "друг")
+    text = (
+        f"👤 <b>ЛИЧНЫЙ КАБИНЕТ</b>\n\n"
+        f"• Имя: <b>{user_name}</b>\n"
+        f"• ID: <code>{user_id}</code>\n"
+        f"• Баланс звезд: <b>{get_balance(user_id)}</b> ⭐\n"
+        f"• Активных заказов: <b>0</b>\n"
+        f"• Сумма покупок: <b>0.00 ₽</b>\n"
+    )
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref")],
+            [InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")]
+        ]
+    )
+    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+
+@rt.message(F.text == "👥 Рефералы")
+async def text_ref(message: Message, state: FSMContext):
+    await state.clear()
+    user_id = message.from_user.id
+    balance = get_balance(user_id)
+    referrals = get_referrals_count(user_id)
+    
+    bot_username = (await message.bot.get_me()).username
+    ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
+
+    text = (
+        f"👥 <b>РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
+        f"Приглашайте друзей и получайте <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 500 ₽.\n\n"
+        f"🔗 Ваша реферальная ссылка:\n<code>{ref_link}</code>\n\n"
+        f"👥 Приглашено друзей: <b>{referrals}</b>\n"
+        f"⭐ Доступно на балансе: <b>{balance}</b> ⭐\n"
+    )
+    keyboard = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
+            [InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")]
+        ]
+    )
+    await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+
+@rt.message(F.text == "🆘 Поддержка")
+async def text_support(message: Message, state: FSMContext):
+    await state.set_state(user_states.waiting_for_support)
+    await message.answer("🆘 <b>Служба поддержки</b>\n\nНапишите вашу проблему или вопрос — мы постараемся ответить максимально быстро.", parse_mode="HTML")
 
 @rt.callback_query(F.data == "crypto")
 async def crypto_menu(callback: CallbackQuery):
@@ -205,7 +281,6 @@ async def crypto_menu(callback: CallbackQuery):
     await safe_edit(callback, text, keyboard)
     await callback.answer()
 
-# --- МАГАЗИН STARS & PREMIUM ---
 @rt.callback_query(F.data == "stars")
 async def stars_menu_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
@@ -337,7 +412,6 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     await callback.answer()
 
-# --- ПРОВЕРКА ОПЛАТЫ И АВТОВЫДАЧА ЧЕРЕЗ FRAGMENT API ---
 @rt.callback_query(F.data.startswith("check_"))
 async def check_payment_handler(callback: CallbackQuery):
     try:
@@ -366,7 +440,6 @@ async def check_payment_handler(callback: CallbackQuery):
             delivery_success = False
             error_message = ""
             
-            # Автоматическая выдача звезд через Fragment API
             if product_type == "stars":
                 quantity = product_info.get("quantity", 50)
                 clean_username = target_user.lstrip("@")
@@ -377,7 +450,6 @@ async def check_payment_handler(callback: CallbackQuery):
                         "Content-Type": "application/json"
                     }
                     
-                    # Шаг 1: Поиск получателя (Resolve recipient)
                     search_url = f"{FRAGMENT_API_URL}/star/recipient/search?username={clean_username}&quantity={quantity}"
                     async with session.get(search_url, headers=headers) as resp:
                         if resp.status == 200:
@@ -385,7 +457,6 @@ async def check_payment_handler(callback: CallbackQuery):
                             recipient_hash = search_data.get("recipient_hash") or search_data.get("result", {}).get("recipient_hash")
                             
                             if recipient_hash:
-                                # Шаг 2: Создание заказа (Create order)
                                 order_url = f"{FRAGMENT_API_URL}/orders/star"
                                 idempotency_key = str(uuid.uuid4())
                                 order_headers = {
@@ -411,7 +482,6 @@ async def check_payment_handler(callback: CallbackQuery):
                             err_text = await resp.text()
                             error_message = f"API Search Error: {err_text}"
             
-            # Сообщение покупателю
             if delivery_success:
                 await safe_edit(
                     callback,
@@ -424,7 +494,6 @@ async def check_payment_handler(callback: CallbackQuery):
                     ])
                 )
             else:
-                # Если это Premium (или произошла ошибка автовыдачи звезд), переводим в полуавтоматику с уведомлением админу
                 await safe_edit(
                     callback,
                     f"✅ <b>Оплата успешно получена!</b>\n\n"
@@ -436,7 +505,6 @@ async def check_payment_handler(callback: CallbackQuery):
                     ])
                 )
             
-            # Уведомление администратору
             buyer = callback.from_user
             buyer_label = f"@{buyer.username}" if buyer.username else html.escape(buyer.first_name or "без имени")
             status_desc = "🟢 Автоматически отправлено через Fragment API" if delivery_success else f"🟡 Требует ручной выдачи (Ошибка/Премиум: {error_message})"
@@ -461,7 +529,6 @@ async def check_payment_handler(callback: CallbackQuery):
     except Exception as e:
         logger.error(f"Ошибка проверки счета CryptoBot: {e}")
         await callback.answer("⚠️ Произошла ошибка при проверке счета. Попробуйте позже.", show_alert=True)
-# --- КОНЕЦ МАГАЗИНА ---
 
 @rt.callback_query(F.data == "profile")
 async def profile_menu(callback: CallbackQuery):
@@ -514,16 +581,6 @@ async def ref_menu(callback: CallbackQuery, state: FSMContext):
         ]
     )
     await safe_edit(callback, text, keyboard)
-    await callback.answer()
-
-@rt.callback_query(F.data == "support")
-async def support_callback(callback: CallbackQuery, state: FSMContext):
-    await safe_edit(
-        callback,
-        "🆘 <b>Служба поддержки</b>\n\nНапишите вашу проблему или вопрос — мы постараемся ответить максимально быстро.",
-        back_keyboard()
-    )
-    await state.set_state(user_states.waiting_for_support)
     await callback.answer()
 
 @rt.message(user_states.waiting_for_support)
