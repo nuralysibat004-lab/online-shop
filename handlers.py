@@ -558,17 +558,41 @@ async def buy_stars_friend(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BuyStarsState.waiting_for_friend_username)
     await callback.answer()
 
-# 4. Ловим введенный юзернейм друга
+# 4. Ловим введенный юзернейм друга и проверяем его через Telegram API
 @rt.message(BuyStarsState.waiting_for_friend_username)
 async def process_friend_username(message: Message, state: FSMContext):
     raw_text = message.text.strip()
     if not raw_text.startswith("@") and not raw_text.isdigit():
         raw_text = f"@{raw_text}"
         
-    await state.update_data(target_user=raw_text)
-    await state.set_state(None) # Сбрасываем состояние ввода
+    try:
+        chat = await message.bot.get_chat(raw_text)
+        
+        if chat.type != "private":
+            await message.answer("❌ Это не личный аккаунт Telegram. Пожалуйста, введите юзернейм пользователя.")
+            return
+            
+        target_user = f"@{chat.username}" if chat.username else raw_text
+        
+    except TelegramBadRequest:
+        keyboard = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text="↩️ Назад", callback_data="stars")]
+            ]
+        )
+        await message.answer(
+            "❌ <b>Нет аккаунта с таким именем пользователя.</b>\nПожалуйста, введите корректное имя.",
+            reply_markup=keyboard,
+            parse_mode="HTML"
+        )
+        return
+    except Exception:
+        await message.answer("❌ Произошла ошибка при проверке аккаунта. Попробуйте еще раз.")
+        return
+
+    await state.update_data(target_user=target_user)
+    await state.set_state(None)
     
-    # Отправляем сообщение с пакетами звезд
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -585,11 +609,11 @@ async def process_friend_username(message: Message, state: FSMContext):
     )
     text = (
         f"⭐ <b>Покупка звёзд</b>\n"
-        f"👤 <b>Получатель:</b> {raw_text}\n\n"
+        f"👤 <b>Получатель:</b> {target_user}\n\n"
         f"• Выберите необходимый пакет или введите числом от 50 до 100.000:"
     )
     await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
-
+    
 # Вспомогательная функция для показа пакетов при покупке себе
 async def show_stars_packages_menu(callback: CallbackQuery, target_user: str):
     keyboard = InlineKeyboardMarkup(
