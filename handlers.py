@@ -47,16 +47,16 @@ class BuySteps(StatesGroup):
     choosing_product = State()
 
 PRICES = {
-    "prod_stars_50": {"amount": 74, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
-    "prod_stars_100": {"amount": 147, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
-    "prod_stars_150": {"amount": 221, "title": "150 Telegram Stars", "type": "stars", "quantity": 150},
-    "prod_stars_250": {"amount": 368, "title": "250 Telegram Stars", "type": "stars", "quantity": 250},
-    "prod_stars_500": {"amount": 735, "title": "500 Telegram Stars", "type": "stars", "quantity": 500},
-    "prod_stars_1000": {"amount": 1470, "title": "1000 Telegram Stars", "type": "stars", "quantity": 1000},
-    "prod_stars_2500": {"amount": 3675, "title": "2500 Telegram Stars", "type": "stars", "quantity": 2500},
-    "prod_prem_3": {"amount": 1050, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
-    "prod_prem_6": {"amount": 1400, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
-    "prod_prem_12": {"amount": 2450, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
+    "prod_stars_50": {"amount": 72, "usdt": 0.89, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
+    "prod_stars_100": {"amount": 144, "usdt": 1.78, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
+    "prod_stars_150": {"amount": 216, "usdt": 2.68, "title": "150 Telegram Stars", "type": "stars", "quantity": 150},
+    "prod_stars_250": {"amount": 360, "usdt": 4.47, "title": "250 Telegram Stars", "type": "stars", "quantity": 250},
+    "prod_stars_500": {"amount": 720, "usdt": 8.94, "title": "500 Telegram Stars", "type": "stars", "quantity": 500},
+    "prod_stars_1000": {"amount": 1440, "usdt": 17.89, "title": "1000 Telegram Stars", "type": "stars", "quantity": 1000},
+    "prod_stars_2500": {"amount": 3600, "usdt": 44.72, "title": "2500 Telegram Stars", "type": "stars", "quantity": 2500},
+    "prod_prem_3": {"amount": 1050, "usdt": 13.03, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
+    "prod_prem_6": {"amount": 1400, "usdt": 17.38, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
+    "prod_prem_12": {"amount": 2450, "usdt": 30.42, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
 }
 
 def hash_password(password):
@@ -262,13 +262,13 @@ async def show_products(message: Message, state: FSMContext):
     
     if category == "stars":
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ 50 звезд — 74 ₽", callback_data="prod_stars_50")],
-            [InlineKeyboardButton(text="⭐ 100 звезд — 147 ₽", callback_data="prod_stars_100")],
-            [InlineKeyboardButton(text="⭐ 150 звезд — 221 ₽", callback_data="prod_stars_150")],
-            [InlineKeyboardButton(text="⭐ 250 звезд — 368 ₽", callback_data="prod_stars_250")],
-            [InlineKeyboardButton(text="⭐ 500 звезд — 735 ₽", callback_data="prod_stars_500")],
-            [InlineKeyboardButton(text="⭐ 1000 звезд — 1470 ₽", callback_data="prod_stars_1000")],
-            [InlineKeyboardButton(text="⭐ 2500 звезд — 3675 ₽", callback_data="prod_stars_2500")],
+            [InlineKeyboardButton(text="⭐ 50 звезд — 72 ₽", callback_data="prod_stars_50")],
+            [InlineKeyboardButton(text="⭐ 100 звезд — 144 ₽", callback_data="prod_stars_100")],
+            [InlineKeyboardButton(text="⭐ 150 звезд — 216 ₽", callback_data="prod_stars_150")],
+            [InlineKeyboardButton(text="⭐ 250 звезд — 360 ₽", callback_data="prod_stars_250")],
+            [InlineKeyboardButton(text="⭐ 500 звезд — 720 ₽", callback_data="prod_stars_500")],
+            [InlineKeyboardButton(text="⭐ 1000 звезд — 1440 ₽", callback_data="prod_stars_1000")],
+            [InlineKeyboardButton(text="⭐ 2500 звезд — 3600 ₽", callback_data="prod_stars_2500")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="stars")]
         ])
         text = "📦 <b>Выберите необходимый пакет звёзд:</b>"
@@ -300,7 +300,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     target_user = data.get("target_user", f"@{callback.from_user.username}")
     
     rub_price = product_info["amount"]
-    usdt_amount = round(rub_price / 98.0, 2)
+    usdt_amount = product_info["usdt"]
 
     try:
         invoice = await cryptopay.create_invoice(
@@ -321,7 +321,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
             f"🛒 <b>Заказ успешно сформирован!</b>\n\n"
             f"📦 Товар: <b>{product_info['title']}</b>\n"
             f"👤 Получатель: <code>{target_user}</code>\n"
-            f"💰 Цена: <b>{rub_price} ₽</b>\n\n"
+            f"💰 Цена: <b>{rub_price} ₽</b> (оплата: <b>{usdt_amount} USDT</b>)\n\n"
             f"Нажмите кнопку ниже для безопасной оплаты через CryptoBot:",
             kb
         )
