@@ -11,7 +11,7 @@ import aiofiles
 from aiocryptopay import AioCryptoPay, Networks
 from aiogram import F, Router, types
 from aiogram.exceptions import TelegramBadRequest
-from aiogram.filters import Command, CommandObject
+from aiogram.filters import Command, CommandObject, CommandStart
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
