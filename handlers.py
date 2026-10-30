@@ -123,9 +123,13 @@ async def start_handler(message: Message, state: FSMContext, command: CommandObj
     await state.clear()
     user_id = message.from_user.id
     user_name = html.escape(message.from_user.first_name or "друг")
-        # Начисляем 999 звезд админу
-    if user_id == 7461353872:
-        bot_db.update_balance(user_id, 999)
+
+        if is_new:
+        if referrer_id:
+            bot_db.add_user(referrer_id)  # если базу стёрло, восстанавливаем строку пригласившего
+        bot_db.add_user(user_id, referrer_id)
+        if user_id == ADMIN_ID:
+            bot_db.update_balance(user_id, 999)  # тестовые звёзды админу, только при первом входе
         
         
     referrer_id = None
