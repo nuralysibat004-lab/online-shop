@@ -292,7 +292,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     
     try:
         invoice = await cryptopay.create_invoice(
-            asset='RUB',
+            asset='USDT',
             amount=product_info["amount"],
             description=f"Покупка {product_info['title']} для {target_user}",
             payload=f"{product_key}:{target_user}"
