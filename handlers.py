@@ -558,22 +558,27 @@ async def buy_stars_friend(callback: CallbackQuery, state: FSMContext):
     await state.set_state(BuyStarsState.waiting_for_friend_username)
     await callback.answer()
 
-# 4. Ловим введенный юзернейм друга и проверяем его формат
+# 4. Ловим введенный юзернейм друга, чистим чат и показываем пакеты в том же сообщении
 @rt.message(BuyStarsState.waiting_for_friend_username)
 async def process_friend_username(message: Message, state: FSMContext):
     raw_text = message.text.strip()
     if raw_text.startswith("@"):
         raw_text = raw_text[1:]
         
-    # Проверка по правилам Telegram: от 5 до 32 символов, только латиница, цифры и подчеркивание
+    # Проверка по правилам Telegram: от 5 до 32 символов, латиница, цифры и подчеркивание
     if not re.fullmatch(r"[a-zA-Z0-9_]{5,32}", raw_text):
         keyboard = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text="↩️ Назад", callback_data="stars")]
             ]
         )
+        try:
+            await message.delete() # Удаляем мусорное сообщение пользователя
+        except Exception:
+            pass
+            
         await message.answer(
-            "❌ <b>Некорректное имя пользователя.</b>\nПожалуйста, введите корректное имя.",
+            "❌ <b>Некорректное имя пользователя.</b>\nПожалуйста, введите корректное имя (от 5 до 32 символов, латиница, цифры, _):",
             reply_markup=keyboard,
             parse_mode="HTML"
         )
@@ -583,7 +588,13 @@ async def process_friend_username(message: Message, state: FSMContext):
     await state.update_data(target_user=target_user)
     await state.set_state(None) # Сбрасываем состояние ввода
     
-    # Отправляем сообщение с пакетами звезд
+    # Пытаемся удалить сообщение пользователя с ником для чистоты чата
+    try:
+        await message.delete()
+    except Exception:
+        pass
+
+    # Клавиатура с пакетами
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [
@@ -598,12 +609,16 @@ async def process_friend_username(message: Message, state: FSMContext):
             [InlineKeyboardButton(text="↩️ Назад", callback_data="stars")]
         ]
     )
+    
     text = (
         f"⭐ <b>Покупка звёзд</b>\n"
         f"👤 <b>Получатель:</b> {target_user}\n\n"
         f"• Выберите необходимый пакет или введите числом от 50 до 100.000:"
     )
+    
+    # Отправляем новое сообщение с выбором пакетов (или можно отредактировать последнее сообщение бота)
     await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+            
     
     
 # Вспомогательная функция для показа пакетов при покупке себе
