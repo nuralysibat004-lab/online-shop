@@ -476,4 +476,4 @@ async def process_withdraw_amount(message: Message, state: FSMContext):
             parse_mode="HTML"
         )
     except Exception:
-        logger.exception("Не удалось отправить уведомление адми
+        logger.exception("Не удалось отправить уведомление админу (ID-%s)", ADMIN_ID)
