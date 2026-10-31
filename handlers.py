@@ -36,7 +36,7 @@ MIN_WITHDRAW = 50
 REFERRAL_BONUS = 50
 REFERRAL_MIN_STARS = 350
 
-ADMIN_IDS = [int(x) for x in ALLOWED_ADMIN_IDS]
+ADMIN_IDS = [int(x.strip()) for x in ALLOWED_ADMIN_IDS.split(",") if x.strip().isdigit()]
 ADMIN_ID = 7461353872
 
 cryptopay = AioCryptoPay(token=os.getenv("CRYPTO_BOT_TOKEN"), network=Networks.MAIN_NET)
