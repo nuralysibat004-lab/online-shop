@@ -448,10 +448,10 @@ async def text_reviews(message: Message, state: FSMContext):
       else "https://t.me/"
   )
   kb = InlineKeyboardMarkup(
-      inline_keyboard=[
-          InlineKeyboardButton(text="⭐ Перейти в канал с отзывами", url="https://t.me/GumNyam1")
-          [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
-      ]
+    inline_keyboard=[
+        [InlineKeyboardButton(text="⭐ Перейти в канал с отзывами", url="https://t.me/GumNyam1")],
+        [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+    ]
   )
   await message.answer(
       "<b>💬 Отзывы и выполненные заказы!</b>\n\nЗдесь вы можете ознакомиться с реальными отзывами наших клиентов и списком выполненных заказов ✨",
@@ -736,7 +736,7 @@ async def process_custom_crypto_message(message: Message, state: FSMContext):
 
 @rt.callback_query(F.data.startswith("prod_crypto_"))
 async def process_crypto_product_selection(callback: CallbackQuery, state: FSMContext):
-  prod_key = callback.data.replace("prod_", "")
+  prod_key = callback.data
   await state.update_data(crypto_product=prod_key)
   
   data = await state.get_data()
