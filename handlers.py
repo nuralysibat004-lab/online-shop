@@ -11,7 +11,7 @@ import uuid
 import aiohttp
 from datetime import datetime
 
-from aiogram import F, Router, types
+from aiogram import Bot, F, Router, types
 from aiogram.types import (
     Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton, 
     ReplyKeyboardMarkup, KeyboardButton, InputFile, LabeledPrice, PreCheckoutQuery
@@ -42,6 +42,8 @@ FRAGMENT_API_URL = "https://v1.fragmentapi.com/api/v1/partner"
 FRAGMENT_API_KEY = os.getenv("FRAGMENT_API_KEY", "")
 REVIEW_CHANNEL_ID = os.getenv("REVIEW_CHANNEL_ID", "@your_reviews_channel")
 
+admin_bot = Bot(token=os.getenv("ADMIN_BOT_TOKEN", "")) if os.getenv("ADMIN_BOT_TOKEN") else None
+
 rt = Router()
 bot_db = BotDB(DATABASE)
 
@@ -57,6 +59,7 @@ class BuySteps(StatesGroup):
 class BuyCryptoSteps(StatesGroup):
     choosing_network = State()
     entering_address = State()
+    entering_custom_amount = State()
 
 PRICES = {
     "prod_stars_50": {"amount": 72, "usdt": 0.89, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
@@ -70,18 +73,26 @@ PRICES = {
     "prod_prem_6": {"amount": 1400, "usdt": 17.38, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
     "prod_prem_12": {"amount": 2450, "usdt": 30.42, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
     
-    # Криптовалюта
-    "crypto_usdt_10": {"amount": 1010, "usdt": 10.0, "title": "10 USDT", "type": "crypto", "coin": "USDT", "qty": 10},
-    "crypto_usdt_50": {"amount": 5030, "usdt": 50.0, "title": "50 USDT", "type": "crypto", "coin": "USDT", "qty": 50},
-    "crypto_usdt_100": {"amount": 10060, "usdt": 100.0, "title": "100 USDT", "type": "crypto", "coin": "USDT", "qty": 100},
-    
-    "crypto_usdc_10": {"amount": 1010, "usdt": 10.0, "title": "10 USDC", "type": "crypto", "coin": "USDC", "qty": 10},
-    "crypto_usdc_50": {"amount": 5030, "usdt": 50.0, "title": "50 USDC", "type": "crypto", "coin": "USDC", "qty": 50},
-    "crypto_usdc_100": {"amount": 10060, "usdt": 100.0, "title": "100 USDC", "type": "crypto", "coin": "USDC", "qty": 100},
-    
-    "crypto_ton_1": {"amount": 126, "usdt": 1.25, "title": "1 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 1},
-    "crypto_ton_5": {"amount": 630, "usdt": 6.25, "title": "5 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 5},
-    "crypto_ton_10": {"amount": 1260, "usdt": 12.5, "title": "10 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 10},
+    # GRAM (TON)
+    "crypto_ton_1": {"amount": 110, "usdt": 1.36, "title": "1 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 1},
+    "crypto_ton_3": {"amount": 330, "usdt": 4.09, "title": "3 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 3},
+    "crypto_ton_5": {"amount": 550, "usdt": 6.82, "title": "5 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 5},
+    "crypto_ton_7": {"amount": 770, "usdt": 9.55, "title": "7 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 7},
+    "crypto_ton_10": {"amount": 1100, "usdt": 13.64, "title": "10 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 10},
+
+    # USDT
+    "crypto_usdt_1": {"amount": 81, "usdt": 1.0, "title": "1 USDT (56 Stars)", "type": "crypto", "coin": "USDT", "qty": 1},
+    "crypto_usdt_3": {"amount": 243, "usdt": 3.0, "title": "3 USDT (169 Stars)", "type": "crypto", "coin": "USDT", "qty": 3},
+    "crypto_usdt_5": {"amount": 404, "usdt": 5.0, "title": "5 USDT (281 Stars)", "type": "crypto", "coin": "USDT", "qty": 5},
+    "crypto_usdt_7": {"amount": 566, "usdt": 7.0, "title": "7 USDT (393 Stars)", "type": "crypto", "coin": "USDT", "qty": 7},
+    "crypto_usdt_10": {"amount": 809, "usdt": 10.0, "title": "10 USDT (562 Stars)", "type": "crypto", "coin": "USDT", "qty": 10},
+
+    # USDC
+    "crypto_usdc_1": {"amount": 81, "usdt": 1.0, "title": "1 USDC (56 Stars)", "type": "crypto", "coin": "USDC", "qty": 1},
+    "crypto_usdc_3": {"amount": 243, "usdt": 3.0, "title": "3 USDC (169 Stars)", "type": "crypto", "coin": "USDC", "qty": 3},
+    "crypto_usdc_5": {"amount": 404, "usdt": 5.0, "title": "5 USDC (281 Stars)", "type": "crypto", "coin": "USDC", "qty": 5},
+    "crypto_usdc_7": {"amount": 566, "usdt": 7.0, "title": "7 USDC (393 Stars)", "type": "crypto", "coin": "USDC", "qty": 7},
+    "crypto_usdc_10": {"amount": 809, "usdt": 10.0, "title": "10 USDC (562 Stars)", "type": "crypto", "coin": "USDC", "qty": 10},
 }
 
 def get_balance(user_id: int) -> int:
@@ -105,12 +116,11 @@ async def safe_edit(callback: CallbackQuery, text: str, reply_markup=None) -> No
         if "message is not modified" not in str(e):
             raise
 
-# Нижнее меню с кнопкой «Отзывы»
 def get_main_reply_keyboard():
     return ReplyKeyboardMarkup(
         keyboard=[
-            [KeyboardButton(text="🪙 USDT/GRAM"), KeyboardButton(text="⭐ Купить звёзды")],
-            [KeyboardButton(text="🧾 История заказов"), KeyboardButton(text="👤 Профиль")],
+            [KeyboardButton(text="🪙 Криптовалюта"), KeyboardButton(text="⭐ Купить звёзды")],
+            [KeyboardButton(text="📦 История заказов"), KeyboardButton(text="👤 Профиль")],
             [KeyboardButton(text="💬 Отзывы"), KeyboardButton(text="👥 Рефералы")],
             [KeyboardButton(text="🆘 Поддержка")]
         ],
@@ -125,7 +135,9 @@ def back_keyboard():
         ]
     )
 
-async def publish_to_reviews_channel(bot, order_id, product_title, buyer, target_user, amount_rub):
+async def publish_to_reviews_channel(order_id, product_title, buyer, target_user, amount_rub):
+    if not admin_bot:
+        return
     now = datetime.now().strftime("%d.%m.%Y %H:%M")
     buyer_label = f"@{buyer.username}" if buyer.username else html.escape(buyer.first_name or "без имени")
     text = (
@@ -138,9 +150,9 @@ async def publish_to_reviews_channel(bot, order_id, product_title, buyer, target
         f"🕒 Дата: {now}"
     )
     try:
-        await bot.send_message(REVIEW_CHANNEL_ID, text, parse_mode="HTML")
+        await admin_bot.send_message(REVIEW_CHANNEL_ID, text, parse_mode="HTML")
     except Exception as e:
-        logger.error(f"Не удалось отправить отчет в канал отзывов: {e}")
+        logger.error(f"Не удалось отправить отчет в канал отзывов через admin_bot: {e}")
 
 @rt.message(Command("start"))
 async def start_handler(message: Message, state: FSMContext, command: CommandObject = None):
@@ -180,13 +192,13 @@ async def start_handler(message: Message, state: FSMContext, command: CommandObj
     ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
 
     text = (
-        f"💞 Добро пожаловать, <b>{user_name}</b>! Ты попал в <b>GumStars</b> лучший бот по покупке криптовалюты и цифровых товаров ⭐\n\n"
+        f"💞 Добро пожаловать, <b>{user_name}</b>! Ты попал в <b>GumStars</b> — лучший бот по покупке криптовалюты и цифровых товаров ⭐\n\n"
         f"💎 Быстро, безопасно и по выгодному курсу.\n\n"
         f"💰 Твой баланс звезд: <b>{balance}</b> ⭐\n"
         f"🔗 Реферальная система:\n"
         f"• Приглашай друзей по своей ссылке: <code>{ref_link}</code>\n"
         f"• Когда твой друг купит товар на сумму от 500 ₽, тебе на баланс автоматически зачислится <b>{REFERRAL_BONUS}</b> ⭐!\n\n"
-        f"Выберите нужный раздел в панеле ниже 👇"
+        f"Выберите нужный раздел в меню ниже 👇"
     )
     await message.answer(text, reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
 
@@ -195,9 +207,9 @@ async def back_to_menu_callback(callback: CallbackQuery, state: FSMContext):
     await state.clear()
     user_name = html.escape(callback.from_user.first_name or "друг")
     text = (
-        f"💞 Добро пожаловать, <b>{user_name}</b>! Ты попал в <b>GumStars</b> лучший бот по покупке криптовалюты и цифровых товаров ⭐\n\n"
+        f"💞 Добро пожаловать, <b>{user_name}</b>! Ты попал в <b>GumStars</b> — лучший бот по покупке криптовалюты и цифровых товаров ⭐\n\n"
         f"💎 Быстро, безопасно и по выгодному курсу.\n\n"
-        f"Выберите нужный раздел в панеле ниже 👇"
+        f"Выберите нужный раздел в меню ниже 👇"
     )
     try:
         await callback.message.delete()
@@ -238,10 +250,10 @@ async def text_stars(message: Message, state: FSMContext):
     ])
     await message.answer("✨ <b>Магазин Telegram Stars & Premium</b>\n\nВыберите категорию товара:", reply_markup=kb, parse_mode="HTML")
 
-@rt.message(F.text == "🧾 История заказов")
+@rt.message(F.text == "📦 История заказов")
 async def text_orders(message: Message, state: FSMContext):
     await state.clear()
-    await message.answer("🧾 <b>История заказов</b>\n\nУ вас пока нет активных или завершённых заказов.", parse_mode="HTML")
+    await message.answer("📦 <b>История заказов</b>\n\nУ вас пока нет активных или завершённых заказов.", parse_mode="HTML")
 
 @rt.message(F.text == "👤 Профиль")
 async def text_profile(message: Message, state: FSMContext):
@@ -289,17 +301,34 @@ async def text_ref(message: Message, state: FSMContext):
     )
     await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
 
-@rt.message(F.text == "🆘 Поддержка")
-async def text_support(message: Message, state: FSMContext):
-    await state.set_state(user_states.waiting_for_support)
-    await message.answer("🆘 <b>Служба поддержки</b>\n\nНапишите вашу проблему или вопрос — мы постараемся ответить максимально быстро.", parse_mode="HTML")
-# --- ПОКУПКА КРИПТОВАЛЮТЫ (USDT, USDC, TON + СЕТЬ + АВТОВЫДАЧА) ---
+@rt.message(user_states.waiting_for_support)
+async def process_support_message(message: Message, state: FSMContext, bot):
+    user_id = message.from_user.id
+    user_name = html.escape(message.from_user.first_name or "")
+    username = f"@{message.from_user.username}" if message.from_user.username else "нет никнейма"
+    body = html.escape(message.text or message.caption or "[вложение]")
+
+    admin_text = (
+        f"📩 <b>Новое обращение в поддержку!</b>\n"
+        f"👤 От: {user_name} ({username})\n"
+        f"🆔 ID: <code>{user_id}</code>\n\n"
+        f"💬 Сообщение:\n{body}"
+    )
+    try:
+        await bot.send_message(ADMIN_ID, admin_text, parse_mode="HTML")
+        if not message.text:
+            await message.copy_to(ADMIN_ID)
+    except Exception:
+        logger.exception("Не удалось отправить обращение в поддержку админу")
+
+    await message.answer("✅ Ваше сообщение успешно отправлено в поддержку! Ожидайте ответа.")
+    await state.clear()
+# --- ПОКУПКА КРИПТОВАЛЮТЫ И ОБМЕН ---
 @rt.callback_query(F.data.startswith("crypto_coin_"))
 async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
     coin = callback.data.split("_")[2]
     await state.update_data(crypto_coin=coin)
     
-    # Выбор сети в зависимости от монеты
     if coin == "USDT":
         kb = InlineKeyboardMarkup(inline_keyboard=[
             [InlineKeyboardButton(text="TON Network", callback_data="net_TON")],
@@ -343,31 +372,90 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
     data = await state.get_data()
     coin = data.get("crypto_coin", "USDT")
     
-    # Предлагаем пакеты монет
     if coin == "TON":
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="1 TON — 126 ₽ (1.25 USDT)", callback_data="prod_crypto_ton_1")],
-            [InlineKeyboardButton(text="5 TON — 630 ₽ (6.25 USDT)", callback_data="prod_crypto_ton_5")],
-            [InlineKeyboardButton(text="10 TON — 1260 ₽ (12.5 USDT)", callback_data="prod_crypto_ton_10")],
+            [InlineKeyboardButton(text="1 GRAM — 110 ₽ (1.36 USDT)", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="3 GRAM — 330 ₽ (4.09 USDT)", callback_data="prod_crypto_ton_3")],
+            [InlineKeyboardButton(text="5 GRAM — 550 ₽ (6.82 USDT)", callback_data="prod_crypto_ton_5")],
+            [InlineKeyboardButton(text="7 GRAM — 770 ₽ (9.55 USDT)", callback_data="prod_crypto_ton_7")],
+            [InlineKeyboardButton(text="10 GRAM — 1100 ₽ (13.64 USDT)", callback_data="prod_crypto_ton_10")],
+            [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
+            [InlineKeyboardButton(text="💱 Обменять GRAM на USDT/USDC", callback_data="exchange_ton_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")]
         ])
     elif coin == "USDC":
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="10 USDC — 1010 ₽ (10 USDT)", callback_data="prod_crypto_usdc_10")],
-            [InlineKeyboardButton(text="50 USDC — 5030 ₽ (50 USDT)", callback_data="prod_crypto_usdc_50")],
-            [InlineKeyboardButton(text="100 USDC — 10060 ₽ (100 USDT)", callback_data="prod_crypto_usdc_100")],
+            [InlineKeyboardButton(text="1 USDC — 81 ₽ (56 Stars)", callback_data="prod_crypto_usdc_1")],
+            [InlineKeyboardButton(text="3 USDC — 243 ₽ (169 Stars)", callback_data="prod_crypto_usdc_3")],
+            [InlineKeyboardButton(text="5 USDC — 404 ₽ (281 Stars)", callback_data="prod_crypto_usdc_5")],
+            [InlineKeyboardButton(text="7 USDC — 566 ₽ (393 Stars)", callback_data="prod_crypto_usdc_7")],
+            [InlineKeyboardButton(text="10 USDC — 809 ₽ (562 Stars)", callback_data="prod_crypto_usdc_10")],
+            [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
+            [InlineKeyboardButton(text="💱 Обменять Stars на USDT/USDC", callback_data="exchange_stars_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")]
         ])
     else:
         kb = InlineKeyboardMarkup(inline_keyboard=[
-            [InlineKeyboardButton(text="10 USDT — 1010 ₽ (10 USDT)", callback_data="prod_crypto_usdt_10")],
-            [InlineKeyboardButton(text="50 USDT — 5030 ₽ (50 USDT)", callback_data="prod_crypto_usdt_50")],
-            [InlineKeyboardButton(text="100 USDT — 10060 ₽ (100 USDT)", callback_data="prod_crypto_usdt_100")],
+            [InlineKeyboardButton(text="1 USDT — 81 ₽ (56 Stars)", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="3 USDT — 243 ₽ (169 Stars)", callback_data="prod_crypto_usdt_3")],
+            [InlineKeyboardButton(text="5 USDT — 404 ₽ (281 Stars)", callback_data="prod_crypto_usdt_5")],
+            [InlineKeyboardButton(text="7 USDT — 566 ₽ (393 Stars)", callback_data="prod_crypto_usdt_7")],
+            [InlineKeyboardButton(text="10 USDT — 809 ₽ (562 Stars)", callback_data="prod_crypto_usdt_10")],
+            [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
+            [InlineKeyboardButton(text="💱 Обменять Stars на USDT/USDC", callback_data="exchange_stars_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")]
         ])
         
     await safe_edit(callback, f"📦 <b>Выберите количество {coin} (Сеть: {network}):</b>", kb)
     await callback.answer()
+
+# --- ПОЛУАВТОМАТИКА ДЛЯ КАСТОМНЫХ ЗАПРОСОВ И ОБМЕНА ---
+@rt.callback_query(F.data == "custom_crypto_amount")
+async def custom_crypto_amount(callback: CallbackQuery, state: FSMContext):
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")]])
+    await safe_edit(callback, "✍️ Введите в чат нужное вам количество монеты цифрой (например: <code>15</code> или <code>2.5</code>):", kb)
+    await state.set_state(BuyCryptoSteps.entering_custom_amount)
+    await callback.answer()
+
+@rt.callback_query(F.data.in_({"exchange_ton_to_stable", "exchange_stars_to_stable"}))
+async def exchange_custom_mode(callback: CallbackQuery, state: FSMContext):
+    is_ton = callback.data == "exchange_ton_to_stable"
+    title_text = "Обмен GRAM на USDT/USDC" if is_ton else "Обмен Stars на USDT/USDC"
+    
+    kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")]])
+    await safe_edit(callback, f"💱 <b>{title_text} (Полуавтоматический режим)</b>\n\nНапишите в чат детальный запрос (например: <i>Хочу обменять 500 звезд на USDT</i> или <i>Обменять 10 GRAM на USDC</i>):", kb)
+    await state.set_state(BuyCryptoSteps.entering_custom_amount)
+    await callback.answer()
+
+@rt.message(BuyCryptoSteps.entering_custom_amount)
+async def process_custom_crypto(message: Message, state: FSMContext):
+    text_val = message.text.strip()
+    data = await state.get_data()
+    coin = data.get("crypto_coin", "TON")
+    network = data.get("crypto_net", "TON")
+
+    await state.clear()
+    
+    await message.answer(
+        f"✅ <b>Заявка принята в обработку (Полуавтоматический режим)!</b>\n\n"
+        f"📌 Запрос: <code>{text_val}</code>\n"
+        f"🌐 Сеть: <b>{network}</b>\n\n"
+        f"Администратор уже получил уведомление и свяжется с вами для проведения сделки!",
+        reply_markup=get_main_reply_keyboard(), parse_mode="HTML"
+    )
+    
+    buyer = message.from_user
+    buyer_label = f"@{buyer.username}" if buyer.username else html.escape(buyer.first_name or "без имени")
+    admin_text = (
+        f"🟡 <b>ЗАЯВКА НА ОБМЕН / СВОЕ КОЛИЧЕСТВО!</b>\n\n"
+        f"👤 Покупатель: {buyer_label} (ID: <code>{buyer.id}</code>)\n"
+        f"🪙 Монета/Сеть: <b>{coin} ({network})</b>\n"
+        f"💬 Детали от клиента:\n<code>{text_val}</code>"
+    )
+    try:
+        await message.bot.send_message(ADMIN_ID, admin_text, parse_mode="HTML")
+    except Exception:
+        logger.exception("Не удалось отправить уведомление админу")
 
 @rt.callback_query(F.data.startswith("prod_crypto_"))
 async def ask_crypto_recipient(callback: CallbackQuery, state: FSMContext):
@@ -399,7 +487,6 @@ async def process_crypto_address(message: Message, state: FSMContext):
     rub_price = product_info["amount"]
     usdt_amount = product_info["usdt"]
     network = data.get("crypto_net", "TON")
-    coin = data.get("crypto_coin", "USDT")
 
     try:
         invoice = await cryptopay.create_invoice(
@@ -430,7 +517,6 @@ async def process_crypto_address(message: Message, state: FSMContext):
 
     await state.clear()
 
-# Проверка оплаты крипты и автовыдача
 @rt.callback_query(F.data.startswith("checkcrypto_"))
 async def check_crypto_payment(callback: CallbackQuery):
     try:
@@ -456,8 +542,6 @@ async def check_crypto_payment(callback: CallbackQuery):
             
             product_info = PRICES.get(prod_key, {"title": "Криптовалюта", "amount": 0})
             
-            delivery_success = True # Крипта через CryptoBot обрабатывается / уходит в автоматику
-            
             await safe_edit(
                 callback,
                 f"✅ <b>Оплата получена, криптовалюта отправлена!</b>\n\n"
@@ -470,10 +554,8 @@ async def check_crypto_payment(callback: CallbackQuery):
                 ])
             )
             
-            # Автоматическая отправка отчета в канал отзывов
             buyer = callback.from_user
             await publish_to_reviews_channel(
-                callback.bot, 
                 order_id=invoice_id, 
                 product_title=product_info['title'], 
                 buyer=buyer, 
@@ -481,7 +563,6 @@ async def check_crypto_payment(callback: CallbackQuery):
                 amount_rub=product_info['amount']
             )
             
-            # Уведомление админу
             buyer_label = f"@{buyer.username}" if buyer.username else html.escape(buyer.first_name or "без имени")
             admin_text = (
                 f"🔥 <b>УСПЕШНАЯ ПОКУПКА КРИПТЫ!</b>\n\n"
