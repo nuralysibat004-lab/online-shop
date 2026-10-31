@@ -861,7 +861,29 @@ async def successful_payment_handler(message: Message):
           reply_markup=get_main_reply_keyboard(),
           parse_mode="HTML",
       )
-
+    try:
+      if product_info.get("amount", 0) >= 300:
+        user_id = buyer.id
+        user_record = bot_db.get_user(user_id)
+        if user_record and len(user_record) > 1 and user_record[1]:
+          referrer_id = user_record[1]
+          ref_current_balance = (
+              bot_db.get_user(referrer_id)[0]
+              if bot_db.get_user(referrer_id)
+              else 0
+          )
+          new_ref_balance = ref_current_balance + REFERRAL_BONUS
+          bot_db.update_balance(referrer_id, new_ref_balance)
+          await message.bot.send_message(
+              referrer_id,
+              f"🎉 <b>Реферальный бонус!</b>\n\n"
+              f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
+              f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
+              parse_mode="HTML",
+          )
+    except Exception as e:
+      logger.error(f"Ошибка начисления реферального бонуса: {e}")
+        
     buyer = message.from_user
     await publish_to_reviews_channel(
         order_id=random.randint(1000, 9999),
@@ -922,7 +944,29 @@ async def check_crypto_payment(callback: CallbackQuery):
           f"💎 Средства успешно доставлены.",
           InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
       )
-
+    try:
+      if product_info.get("amount", 0) >= 300:
+        user_id = callback.from_user.id
+        user_record = bot_db.get_user(user_id)
+        if user_record and len(user_record) > 1 and user_record[1]:
+          referrer_id = user_record[1]
+          ref_current_balance = (
+              bot_db.get_user(referrer_id)[0]
+              if bot_db.get_user(referrer_id)
+              else 0
+          )
+          new_ref_balance = ref_current_balance + REFERRAL_BONUS
+          bot_db.update_balance(referrer_id, new_ref_balance)
+          await callback.message.bot.send_message(
+              referrer_id,
+              f"🎉 <b>Реферальный бонус!</b>\n\n"
+              f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
+              f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
+              parse_mode="HTML",
+          )
+    except Exception as e:
+      logger.error(f"Ошибка начисления реферального бонуса: {e}")
+                     
       buyer = callback.from_user
       await publish_to_reviews_channel(
           order_id=invoice.invoice_id,
