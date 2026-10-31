@@ -27,7 +27,8 @@ from aiogram.types import (
 
 from config import ALLOWED_ADMIN_IDS, DATABASE, ADMIN_PASSWORD, PASSWORD
 from db import BotDB
-from exceptions import WrongItemException
+class WrongItemException(Exception):
+  pass
 from states import user_states
 
 logger = logging.getLogger(__name__)
