@@ -775,9 +775,10 @@ async def process_category(callback: CallbackQuery, state: FSMContext):
         [InlineKeyboardButton(text="👥 Другу (по @username)", callback_data="recipient_friend")],
         [InlineKeyboardButton(text="🔙 Назад", callback_data="stars")]
     ])
-await safe_edit(callback, "🎯 <b>Кому отправляем заказ?</b>", kb)
+    await safe_edit(callback, "🎯 <b>Кому отправляем заказ?</b>", kb)
     await state.set_state(BuySteps.choosing_recipient)
     await callback.answer()
+    
 
 @rt.callback_query(BuySteps.choosing_recipient, F.data == "recipient_self")
 async def recipient_self(callback: CallbackQuery, state: FSMContext):
