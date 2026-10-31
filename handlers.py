@@ -449,7 +449,7 @@ async def text_reviews(message: Message, state: FSMContext):
   )
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="⭐ Перейти в канал с отзывами", https://t.me/GumNyam1)],
+          InlineKeyboardButton(text="⭐ Перейти в канал с отзывами", url="https://t.me/GumNyam1")
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
