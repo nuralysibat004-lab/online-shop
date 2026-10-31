@@ -65,7 +65,7 @@ class BotDB:
             conn.close()
             return res
 
-    def _create_tables(self):
+def _create_tables(self):
         # Таблица пользователей (ID, баланс звёзд/рублей, реферер)
         if self.is_postgres:
             self._run("""
@@ -80,6 +80,13 @@ class BotDB:
                     user_id BIGINT PRIMARY KEY
                 );
             """)
+            # Автоматическая миграция: если таблица в Neon уже была создана раньше
+            try:
+                self._run("ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT DEFAULT NULL;")
+                self._run("ALTER TABLE users ADD COLUMN IF NOT EXISTS balance INTEGER DEFAULT 0;")
+            except Exception:
+                pass
+
             self._run("""
                 CREATE TABLE IF NOT EXISTS transactions (
                     id SERIAL PRIMARY KEY,
