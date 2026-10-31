@@ -26,7 +26,7 @@ from aiogram.types import (
 )
 
 from config import ALLOWED_ADMIN_IDS, DATABASE, ADMIN_PASSWORD, PASSWORD
-from db import BotDb
+from db import BotDB
 from exceptions import WrongItemException
 from states import user_states
 
