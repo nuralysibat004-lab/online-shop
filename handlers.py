@@ -55,7 +55,7 @@ admin_bot = (
 )
 
 rt = Router()
-bot_db = BotDb(DATABASE)
+bot_db = BotDB(DATABASE)
 
 
 class WithdrawState(StatesGroup):
