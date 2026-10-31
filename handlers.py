@@ -29,7 +29,8 @@ from config import ALLOWED_ADMIN_IDS, DATABASE, ADMIN_PASSWORD, PASSWORD
 from db import BotDB
 class WrongItemException(Exception):
   pass
-from states import user_states
+class user_states(StatesGroup):
+  waiting_for_support = State()
 
 logger = logging.getLogger(__name__)
 
