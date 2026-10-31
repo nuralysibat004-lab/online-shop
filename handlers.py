@@ -221,8 +221,8 @@ async def text_crypto_main(message: Message, state: FSMContext):
     keyboard = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="💵 USDT", callback_data="crypto_coin_USDT")],
-            [InlineKeyboardButton(text="💵 USDC", callback_data="crypto_coin_USDC")],
-            [InlineKeyboardButton(text="🟣 GRAM (TON)", callback_data="crypto_coin_TON")],
+            [InlineKeyboardButton(text="💶 USDC", callback_data="crypto_coin_USDC")],
+            [InlineKeyboardButton(text="💎 GRAM (TON)", callback_data="crypto_coin_TON")],
             [InlineKeyboardButton(text="🔙 В главное меню", callback_data="back_to_menu")]
         ]
     )
