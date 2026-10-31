@@ -27,10 +27,6 @@ from aiogram.types import (
 
 from config import ALLOWED_ADMIN_IDS, DATABASE, ADMIN_PASSWORD, PASSWORD
 from db import BotDB
-class WrongItemException(Exception):
-  pass
-class user_states(StatesGroup):
-  waiting_for_support = State()
 
 logger = logging.getLogger(__name__)
 
@@ -75,6 +71,7 @@ class BuyCryptoSteps(StatesGroup):
   entering_custom_amount = State()
 
 
+# ПРАВИЛЬНЫЙ ПРАЙС-ЛИСТ (GRAM за USDT, USDT/USDC за Stars)
 PRICES = {
     "prod_stars_50": {
         "amount": 72,
@@ -148,7 +145,7 @@ PRICES = {
     },
     "prod_crypto_ton_1": {
         "amount": 110,
-        "usdt": 1.35,
+        "usdt": 1.36,
         "title": "1 GRAM (TON)",
         "type": "crypto",
         "coin": "TON",
@@ -187,7 +184,7 @@ PRICES = {
         "qty": 10,
     },
     "prod_crypto_usdt_1": {
-        "amount": 45,
+        "amount": 81,
         "usdt": 1,
         "stars": 56,
         "title": "1 USDT",
@@ -196,7 +193,7 @@ PRICES = {
         "qty": 1,
     },
     "prod_crypto_usdt_3": {
-        "amount": 135,
+        "amount": 243,
         "usdt": 3,
         "stars": 169,
         "title": "3 USDT",
@@ -205,7 +202,7 @@ PRICES = {
         "qty": 3,
     },
     "prod_crypto_usdt_5": {
-        "amount": 225,
+        "amount": 404,
         "usdt": 5,
         "stars": 281,
         "title": "5 USDT",
@@ -214,7 +211,7 @@ PRICES = {
         "qty": 5,
     },
     "prod_crypto_usdt_7": {
-        "amount": 315,
+        "amount": 566,
         "usdt": 7,
         "stars": 393,
         "title": "7 USDT",
@@ -223,7 +220,7 @@ PRICES = {
         "qty": 7,
     },
     "prod_crypto_usdt_10": {
-        "amount": 450,
+        "amount": 809,
         "usdt": 10,
         "stars": 562,
         "title": "10 USDT",
@@ -232,7 +229,7 @@ PRICES = {
         "qty": 10,
     },
     "prod_crypto_usdc_1": {
-        "amount": 45,
+        "amount": 81,
         "usdt": 1,
         "stars": 56,
         "title": "1 USDC",
@@ -241,7 +238,7 @@ PRICES = {
         "qty": 1,
     },
     "prod_crypto_usdc_3": {
-        "amount": 135,
+        "amount": 243,
         "usdt": 3,
         "stars": 169,
         "title": "3 USDC",
@@ -250,7 +247,7 @@ PRICES = {
         "qty": 3,
     },
     "prod_crypto_usdc_5": {
-        "amount": 225,
+        "amount": 404,
         "usdt": 5,
         "stars": 281,
         "title": "5 USDC",
@@ -259,7 +256,7 @@ PRICES = {
         "qty": 5,
     },
     "prod_crypto_usdc_7": {
-        "amount": 315,
+        "amount": 566,
         "usdt": 7,
         "stars": 393,
         "title": "7 USDC",
@@ -268,7 +265,7 @@ PRICES = {
         "qty": 7,
     },
     "prod_crypto_usdc_10": {
-        "amount": 450,
+        "amount": 809,
         "usdt": 10,
         "stars": 562,
         "title": "10 USDC",
@@ -277,6 +274,14 @@ PRICES = {
         "qty": 10,
     },
 }
+
+
+class WrongItemException(Exception):
+  pass
+
+
+class user_states(StatesGroup):
+  waiting_for_support = State()
 
 
 def get_balance(user_id: int) -> int:
@@ -350,7 +355,7 @@ async def publish_to_reviews_channel(
       f"<b>👤 Покупатель:</b> {buyer_label} (ID: <code>{buyer.id}</code>)\n"
       f"<b>🛍 Товар:</b> {product_title}\n"
       f"<b>💰 Сумма:</b> <b>{amount_rub} ₽</b>\n"
-      f"<b>🇺🇦 Получатель:</b> <code>{target_user}</code>\n"
+      f"<b>👤 Получатель:</b> <code>{target_user}</code>\n"
       f"<b>📅 Дата:</b> {now}"
   )
   try:
@@ -411,7 +416,7 @@ async def start_handler(
       f"🪙 Твой баланс звезд: <b>{balance}</b> ⭐\n"
       f"💎 Реферальная система:\n"
       f"• Приглашай друзей по своей ссылке: <code>{ref_link}</code>\n"
-      f"• Когда твой друг купит товар на сумму от 500 ₽, тебе на баланс автоматически зачислится <b>{REFERRAL_BONUS}</b> ⭐!\n\n"
+      f"• Когда твой друг купит товар на сумму от 300 ₽, тебе на баланс автоматически зачислится <b>{REFERRAL_BONUS}</b> ⭐!\n\n"
       f"Выберите нужный раздел в меню ниже 👇"
   )
   await message.answer(text, reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
@@ -421,7 +426,6 @@ async def start_handler(
 async def back_to_menu_callback(callback: CallbackQuery, state: FSMContext):
   await state.clear()
   user_name = html.escape(callback.from_user.first_name or "друг")
-  balance = get_balance(callback.from_user.id)
   text = (
       f"<b>Добро пожаловать, {user_name}! Ты попал в GumStars — лучший бот по покупке криптовалюты и цифровых товаров ⭐</b>\n\n"
       f"Выберите нужный раздел в меню ниже 👇"
@@ -445,7 +449,7 @@ async def text_reviews(message: Message, state: FSMContext):
   )
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="⭐ Перейти в канал с отзывами", url=channel_url)],
+          [InlineKeyboardButton(text="⭐ Перейти в канал с отзывами", https://t.me/GumNyam1)],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
@@ -461,8 +465,8 @@ async def text_crypto_main(message: Message, state: FSMContext):
   await state.clear()
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="🪙 USDT", callback_data="crypto_coin_USDT")],
-          [InlineKeyboardButton(text="💲 USDC", callback_data="crypto_coin_USDC")],
+          [InlineKeyboardButton(text="💲 USDT", callback_data="crypto_coin_USDT")],
+          [InlineKeyboardButton(text="💶 USDC", callback_data="crypto_coin_USDC")],
           [InlineKeyboardButton(text="💎 GRAM (TON)", callback_data="crypto_coin_TON")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
@@ -521,7 +525,7 @@ async def text_ref(message: Message, state: FSMContext):
   ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
   text = (
       f"<b>👥 РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 500 ₽.\n\n"
+      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 300 ₽.\n\n"
       f"🔗 Ваша реферальная ссылка: <code>{ref_link}</code>\n"
       f"👥 Приглашено друзей: <b>{referrals}</b>\n"
       f"⭐ Доступно на балансе: <b>{balance}</b>"
@@ -540,7 +544,6 @@ async def text_support(message: Message, state: FSMContext):
   await state.set_state(user_states.waiting_for_support)
   await message.answer("<b>🛟 Служба поддержки</b>\n\nОтправьте в чат вашу проблему или вопрос — мы постараемся ответить максимально быстро.", parse_mode="HTML")
 
-
 @rt.callback_query(F.data == "ref")
 async def ref_callback(callback: CallbackQuery, state: FSMContext):
   await state.clear()
@@ -551,7 +554,7 @@ async def ref_callback(callback: CallbackQuery, state: FSMContext):
   ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
   text = (
       f"<b>👥 РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 500 ₽.\n\n"
+      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 300 ₽.\n\n"
       f"🔗 Ваша реферальная ссылка: <code>{ref_link}</code>\n"
       f"👥 Приглашено друзей: <b>{referrals}</b>\n"
       f"⭐ Доступно на балансе: <b>{balance}</b>"
@@ -625,8 +628,8 @@ async def crypto_back(callback: CallbackQuery, state: FSMContext):
   await state.clear()
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="🪙 USDT", callback_data="crypto_coin_USDT")],
-          [InlineKeyboardButton(text="💲 USDC", callback_data="crypto_coin_USDC")],
+          [InlineKeyboardButton(text="💲 USDT", callback_data="crypto_coin_USDT")],
+          [InlineKeyboardButton(text="💶 USDC", callback_data="crypto_coin_USDC")],
           [InlineKeyboardButton(text="💎 GRAM (TON)", callback_data="crypto_coin_TON")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
@@ -645,7 +648,7 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 GRAM - 110 ₽ (1.35 USDT)", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="1 GRAM - 110 ₽ (1.36 USDT)", callback_data="prod_crypto_ton_1")],
             [InlineKeyboardButton(text="3 GRAM - 330 ₽ (4.09 USDT)", callback_data="prod_crypto_ton_3")],
             [InlineKeyboardButton(text="5 GRAM - 550 ₽ (6.82 USDT)", callback_data="prod_crypto_ton_5")],
             [InlineKeyboardButton(text="7 GRAM - 770 ₽ (9.55 USDT)", callback_data="prod_crypto_ton_7")],
@@ -657,11 +660,11 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   elif coin == "USDC":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 USDC - 45 ₽ (56 звезд) ⭐", callback_data="prod_crypto_usdc_1")],
-            [InlineKeyboardButton(text="3 USDC - 135 ₽ (169 звезд) ⭐", callback_data="prod_crypto_usdc_3")],
-            [InlineKeyboardButton(text="5 USDC - 225 ₽ (281 звезд) ⭐", callback_data="prod_crypto_usdc_5")],
-            [InlineKeyboardButton(text="7 USDC - 315 ₽ (393 звезд) ⭐", callback_data="prod_crypto_usdc_7")],
-            [InlineKeyboardButton(text="10 USDC - 450 ₽ (562 звезд) ⭐", callback_data="prod_crypto_usdc_10")],
+            [InlineKeyboardButton(text="1 USDC - 81 ₽ (56 звезд) ⭐", callback_data="prod_crypto_usdc_1")],
+            [InlineKeyboardButton(text="3 USDC - 243 ₽ (169 звезд) ⭐", callback_data="prod_crypto_usdc_3")],
+            [InlineKeyboardButton(text="5 USDC - 404 ₽ (281 звезд) ⭐", callback_data="prod_crypto_usdc_5")],
+            [InlineKeyboardButton(text="7 USDC - 566 ₽ (393 звезд) ⭐", callback_data="prod_crypto_usdc_7")],
+            [InlineKeyboardButton(text="10 USDC - 809 ₽ (562 звезд) ⭐", callback_data="prod_crypto_usdc_10")],
             [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT/USDC", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -669,11 +672,11 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 USDT - 45 ₽ (56 звезд) ⭐", callback_data="prod_crypto_usdt_1")],
-            [InlineKeyboardButton(text="3 USDT - 135 ₽ (169 звезд) ⭐", callback_data="prod_crypto_usdt_3")],
-            [InlineKeyboardButton(text="5 USDT - 225 ₽ (281 звезд) ⭐", callback_data="prod_crypto_usdt_5")],
-            [InlineKeyboardButton(text="7 USDT - 315 ₽ (393 звезд) ⭐", callback_data="prod_crypto_usdt_7")],
-            [InlineKeyboardButton(text="10 USDT - 450 ₽ (562 звезд) ⭐", callback_data="prod_crypto_usdt_10")],
+            [InlineKeyboardButton(text="1 USDT - 81 ₽ (56 звезд) ⭐", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="3 USDT - 243 ₽ (169 звезд) ⭐", callback_data="prod_crypto_usdt_3")],
+            [InlineKeyboardButton(text="5 USDT - 404 ₽ (281 звезд) ⭐", callback_data="prod_crypto_usdt_5")],
+            [InlineKeyboardButton(text="7 USDT - 566 ₽ (393 звезд) ⭐", callback_data="prod_crypto_usdt_7")],
+            [InlineKeyboardButton(text="10 USDT - 809 ₽ (562 звезд) ⭐", callback_data="prod_crypto_usdt_10")],
             [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT/USDC", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -730,51 +733,38 @@ async def process_custom_crypto_message(message: Message, state: FSMContext):
     await message.bot.send_message(ADMIN_ID, admin_text, parse_mode="HTML")
   except Exception:
     logger.exception("Не удалось отправить уведомление админу")
- 
+
 @rt.callback_query(F.data.startswith("prod_crypto_"))
-async def ask_crypto_recipient(callback: CallbackQuery, state: FSMContext):
+async def process_crypto_product_selection(callback: CallbackQuery, state: FSMContext):
   prod_key = callback.data.replace("prod_", "")
   await state.update_data(crypto_product=prod_key)
-  kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")]])
-  await safe_edit(callback, "<b>✏️ Отправьте в чат ваш адрес кошелька или @username для получения криптовалюты:</b>", kb)
-  await state.set_state(BuyCryptoSteps.entering_address)
-  await callback.answer()
-
-
-@rt.message(BuyCryptoSteps.entering_address)
-async def process_crypto_address(message: Message, state: FSMContext):
-  address = message.text.strip()
-  if len(address) < 4:
-    await message.answer("<b>⚠️ Неверный адрес или юзернейм. Попробуйте еще раз:</b>", parse_mode="HTML")
-    return
-
-  await state.update_data(crypto_address=address)
+  
   data = await state.get_data()
-  prod_key = data.get("crypto_product")
   product_info = PRICES.get(prod_key)
 
   if not product_info:
-    await message.answer("<b>❌ Ошибка товара.</b>", reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
-    await state.clear()
+    await callback.answer("❌ Ошибка товара!", show_alert=True)
     return
 
   network = data.get("crypto_net", "TON")
   prod_type = product_info.get("type")
+  target_user = f"@{callback.from_user.username}" if callback.from_user.username else str(callback.from_user.id)
 
-  # НАТИВНЫЙ ИНВОЙС TELEGRAM STARS ДЛЯ ПОКУПКИ USDT / USDC
+  # НАТИВНЫЙ ИНВОЙС TELEGRAM STARS ДЛЯ ПОКУПКИ USDT / USDC (Без запроса кошелька)
   if prod_type == "crypto_native_stars":
     stars_amount = product_info.get("stars", 1)
     await state.clear()
 
     prices = [LabeledPrice(label=product_info["title"], amount=stars_amount)]
-    await message.bot.send_invoice(
-        chat_id=message.chat.id,
+    await callback.message.bot.send_invoice(
+        chat_id=callback.message.chat.id,
         title=f"Покупка {product_info['title']}",
-        description=f"Сеть: {network} | Получатель: {address}",
-        payload=f"native_star_crypto:{prod_key}:{address}:{network}",
+        description=f"Сеть: {network} | Автоматическая выдача чека в боте",
+        payload=f"native_star_crypto:{prod_key}:{target_user}:{network}",
         currency="XTR",
         prices=prices,
     )
+    await callback.answer()
     return
 
   # Покупка GRAM (TON) через CryptoBot в USDT
@@ -785,8 +775,8 @@ async def process_crypto_address(message: Message, state: FSMContext):
     invoice = await cryptopay.create_invoice(
         asset="USDT",
         amount=usdt_amount,
-        description=f"Покупка {product_info['title']} ({network}) для {address} ({rub_price} P)",
-        payload=f"{prod_key}:{address}:{network}",
+        description=f"Покупка {product_info['title']} ({network}) для {target_user} ({rub_price} P)",
+        payload=f"{prod_key}:{target_user}:{network}",
     )
 
     kb = InlineKeyboardMarkup(
@@ -797,19 +787,19 @@ async def process_crypto_address(message: Message, state: FSMContext):
         ]
     )
 
-    await message.answer(
+    await safe_edit(
+        callback,
         "<b>✅ Заказ крипты успешно сформирован!</b>\n\n"
         f"📦 Товар: <b>{product_info['title']}</b>\n"
         f"🌐 Сеть: <b>{network}</b>\n"
-        f"👤 Получатель: <code>{address}</code>\n"
+        f"👤 Получатель: <code>{target_user}</code>\n"
         f"💰 Цена: <b>{rub_price} ₽</b> (оплата: <b>{usdt_amount} USDT</b>)\n\n"
         "Нажмите кнопку ниже для безопасной оплаты через CryptoBot:",
-        reply_markup=kb,
-        parse_mode="HTML",
+        kb,
     )
   except Exception as e:
     logger.error(f"Ошибка создания счета CryptoBot (крипта): {e}")
-    await message.answer("<b>❌ Произошла ошибка при создании счета. Попробуйте позже.</b>", parse_mode="HTML")
+    await callback.answer("❌ Произошла ошибка при создании счета. Попробуйте позже.", show_alert=True)
 
   await state.clear()
 
@@ -857,8 +847,7 @@ async def successful_payment_handler(message: Message):
       await message.answer(
           "<b>✅ Оплата Telegram Stars получена!</b>\n\n"
           f"📦 Товар: <b>{product_info['title']}</b>\n"
-          f"🌐 Сеть: <b>{network}</b>\n"
-          f"👤 Получатель: <code>{address}</code>\n\n"
+          f"🌐 Сеть: <b>{network}</b>\n\n"
           f"🎉 <b>Твой чек на получение {crypto_amount} {coin_asset}:</b>\n"
           f"👉 <a href='{check_url}'>Забрать криптовалюту в CryptoBot</a>",
           reply_markup=get_main_reply_keyboard(),
@@ -891,7 +880,6 @@ async def successful_payment_handler(message: Message):
         "<b>🔥 УСПЕШНАЯ ПОКУПКА КРИПТЫ ЗА TELEGRAM STARS!</b>\n\n"
         f"📦 Товар: <b>{product_info['title']}</b> ({network})\n"
         f"👤 Покупатель: {buyer_label} (ID: <code>{buyer.id}</code>)\n"
-        f"📍 Получатель: <code>{address}</code>\n"
         f"⭐ Оплачено звёздам: <b>{payment_info.total_amount} Stars</b>\n"
         f"🤖 Чек выдан: {'Успешно' if check_url else 'ОШИБКА ВЫДАЧИ ЧЕКА'}"
     )
@@ -931,7 +919,6 @@ async def check_crypto_payment(callback: CallbackQuery):
           "<b>✅ Оплата получена, криптовалюта отправлена!</b>\n\n"
           f"📦 Товар: <b>{product_info['title']}</b>\n"
           f"🌐 Сеть: <b>{network}</b>\n"
-          f"👤 Получатель: <code>{address}</code>\n"
           f"💎 Средства успешно доставлены.",
           InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
       )
@@ -944,29 +931,12 @@ async def check_crypto_payment(callback: CallbackQuery):
           target_user=address,
           amount_rub=product_info["amount"],
       )
-
-      buyer_label = (
-          f"@{buyer.username}"
-          if buyer.username
-          else html.escape(buyer.first_name or "Без имени")
-      )
-      admin_text = (
-          "<b>🔥 УСПЕШНАЯ ПОКУПКА КРИПТЫ!</b>\n\n"
-          f"📦 Товар: <b>{product_info['title']}</b> ({network})\n"
-          f"👤 Покупатель: {buyer_label} (ID: <code>{buyer.id}</code>)\n"
-          f"📍 Получатель: <code>{address}</code>\n"
-          f"💰 Сумма: <b>{invoice.amount} {invoice.asset}</b>\n"
-          f"🆔 ID счета: <code>{invoice.invoice_id}</code>"
-      )
-      try:
-        await callback.bot.send_message(ADMIN_ID, admin_text, parse_mode="HTML")
-      except Exception:
-        logger.exception("Не удалось отправить уведомление админу")
     else:
       await callback.answer("⏳ Счет еще не оплачен. Оплатите счет и нажмите кнопку снова.", show_alert=True)
   except Exception as e:
     logger.error(f"Ошибка проверки счета крипты: {e}")
     await callback.answer("⚠️ Произошла ошибка при проверке счета.", show_alert=True)
+
 
 @rt.message(user_states.waiting_for_support)
 async def process_support_message(message: Message, state: FSMContext):
@@ -1065,11 +1035,12 @@ async def process_category(callback: CallbackQuery, state: FSMContext):
   category = "stars" if callback.data == "cat_stars" else "premium"
   await state.update_data(category=category)
 
+  # ИСПРАВЛЕНА КНОПКА НАЗАД: теперь возвращает в магазин звезд/премиума, а не ломает интерфейс
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
           [InlineKeyboardButton(text="👤 Себе", callback_data="recipient_self")],
           [InlineKeyboardButton(text="Другу (по username)", callback_data="recipient_friend")],
-          [InlineKeyboardButton(text="🔙 Назад", callback_data="stars")],
+          [InlineKeyboardButton(text="🔙 Назад", callback_data="cat_stars" if category == "stars" else "cat_premium")],
       ]
   )
   await safe_edit(callback, "<b>👤 Кому отправляем заказ?</b>", kb)
@@ -1193,4 +1164,4 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     await callback.answer("⚠️ Произошла ошибка при создании счета на оплату. Попробуйте позже.", show_alert=True)
 
   await state.clear()
-    
+      
