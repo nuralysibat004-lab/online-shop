@@ -1,3 +1,4 @@
+import aiohttp
 import csv
 import hashlib
 import html
@@ -448,10 +449,10 @@ async def text_reviews(message: Message, state: FSMContext):
       else "https://t.me/"
   )
   kb = InlineKeyboardMarkup(
-    inline_keyboard=[
-        [InlineKeyboardButton(text="⭐ Перейти в канал с отзывами", url="https://t.me/GumNyam1")],
-        [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
-    ]
+      inline_keyboard=[
+          [InlineKeyboardButton(text="⭐ Перейти в канал с отзывами", url="https://t.me/GumNyam1")],
+          [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+      ]
   )
   await message.answer(
       "<b>💬 Отзывы и выполненные заказы!</b>\n\nЗдесь вы можете ознакомиться с реальными отзывами наших клиентов и списком выполненных заказов ✨",
@@ -592,34 +593,81 @@ async def profile_callback(callback: CallbackQuery, state: FSMContext):
   await callback.answer()
 
 
+
+async def deliver_stars_via_fragment(recipient: str, quantity: int) -> dict:
+    """Автоматическая покупка и отправка звезд через Fragment API (v1 partner)"""
+    if not FRAGMENT_API_KEY:
+        logger.warning("FRAGMENT_API_KEY не задан в переменных окружения!")
+        return {"ok": False, "error": "No API key"}
+
+    url = f"{FRAGMENT_API_URL}/orders/star"
+    headers = {
+        "API-Key": FRAGMENT_API_KEY,
+        "Idempotency-Key": str(uuid.uuid4()),
+        "Content-Type": "application/json"
+    }
+    payload = {
+        "recipient": recipient.lstrip("@"),
+        "quantity": quantity,
+        "wallet_type": "TON"
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, headers=headers, json=payload, timeout=25) as resp:
+                data = await resp.json()
+                if resp.status in (200, 201) and (data.get("ok") is not False) and not data.get("error"):
+                    return {"ok": True, "data": data}
+                logger.error(f"Fragment API order error ({resp.status}): {data}")
+                return {"ok": False, "error": data.get("message") or data.get("error") or str(data)}
+    except Exception as e:
+        logger.error(f"Fragment API connection error: {e}")
+        return {"ok": False, "error": str(e)}
+
+
 @rt.callback_query(F.data.startswith("crypto_coin_"))
 async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   coin = callback.data.split("_")[2]
-  await state.update_data(crypto_coin=coin)
-  if coin == "USDT":
+  # Единая надежная сеть TON (без дорогих комиссий TRC20 и Ethereum)
+  network = "TON"
+  await state.update_data(crypto_coin=coin, crypto_net=network)
+  
+  if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="TON Network", callback_data="net_TON")],
-            [InlineKeyboardButton(text="TRC20 Network", callback_data="net_TRC20")],
+            [InlineKeyboardButton(text="1 GRAM - 110 ₽ (1.36 USDT)", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="3 GRAM - 330 ₽ (4.09 USDT)", callback_data="prod_crypto_ton_3")],
+            [InlineKeyboardButton(text="5 GRAM - 550 ₽ (6.82 USDT)", callback_data="prod_crypto_ton_5")],
+            [InlineKeyboardButton(text="7 GRAM - 770 ₽ (9.55 USDT)", callback_data="prod_crypto_ton_7")],
+            [InlineKeyboardButton(text="10 GRAM - 1100 ₽ (13.64 USDT)", callback_data="prod_crypto_ton_10")],
+            [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
     )
   elif coin == "USDC":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="TON Network", callback_data="net_TON")],
-            [InlineKeyboardButton(text="Ethereum (ERC20)", callback_data="net_ERC20")],
+            [InlineKeyboardButton(text="1 USDC - 81 ₽ (56 звезд) ⭐", callback_data="prod_crypto_usdc_1")],
+            [InlineKeyboardButton(text="3 USDC - 243 ₽ (169 звезд) ⭐", callback_data="prod_crypto_usdc_3")],
+            [InlineKeyboardButton(text="5 USDC - 404 ₽ (281 звезд) ⭐", callback_data="prod_crypto_usdc_5")],
+            [InlineKeyboardButton(text="7 USDC - 566 ₽ (393 звезд) ⭐", callback_data="prod_crypto_usdc_7")],
+            [InlineKeyboardButton(text="10 USDC - 809 ₽ (562 звезд) ⭐", callback_data="prod_crypto_usdc_10")],
+            [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT/USDC", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
     )
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="TON Network", callback_data="net_TON")],
+            [InlineKeyboardButton(text="1 USDT - 81 ₽ (56 звезд) ⭐", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="3 USDT - 243 ₽ (169 звезд) ⭐", callback_data="prod_crypto_usdt_3")],
+            [InlineKeyboardButton(text="5 USDT - 404 ₽ (281 звезд) ⭐", callback_data="prod_crypto_usdt_5")],
+            [InlineKeyboardButton(text="7 USDT - 566 ₽ (393 звезд) ⭐", callback_data="prod_crypto_usdt_7")],
+            [InlineKeyboardButton(text="10 USDT - 809 ₽ (562 звезд) ⭐", callback_data="prod_crypto_usdt_10")],
+            [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT/USDC", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
     )
-  await safe_edit(callback, "<b>🌐 Выберите сеть для слияния:</b>", kb)
+  await safe_edit(callback, f"<b>📦 Выберите количество {coin} (Сеть: {network}):</b>", kb)
   await callback.answer()
 
 
@@ -861,6 +909,7 @@ async def successful_payment_handler(message: Message):
           reply_markup=get_main_reply_keyboard(),
           parse_mode="HTML",
       )
+    buyer = message.from_user
     try:
       if product_info.get("amount", 0) >= 300:
         user_id = buyer.id
@@ -883,8 +932,6 @@ async def successful_payment_handler(message: Message):
           )
     except Exception as e:
       logger.error(f"Ошибка начисления реферального бонуса: {e}")
-        
-    buyer = message.from_user
     await publish_to_reviews_channel(
         order_id=random.randint(1000, 9999),
         product_title=product_info["title"],
@@ -911,6 +958,8 @@ async def successful_payment_handler(message: Message):
       logger.exception("Не удалось отправить уведомление админу")
 
 
+
+
 @rt.callback_query(F.data.startswith("checkcrypto_"))
 async def check_crypto_payment(callback: CallbackQuery):
   try:
@@ -929,45 +978,130 @@ async def check_crypto_payment(callback: CallbackQuery):
 
     if invoice.status == "paid":
       payload = invoice.payload or ""
-      parts = payload.split(":", 3)
+      parts = payload.split(":")
       prod_key = parts[0] if len(parts) > 0 else "unknown"
-      address = parts[1] if len(parts) > 1 else "unknown"
+      address = parts[1] if len(parts) > 1 else ""
       network = parts[2] if len(parts) > 2 else "TON"
 
-      product_info = PRICES.get(prod_key, {"title": "Криптовалюта", "amount": 0})
-
-      await safe_edit(
-          callback,
-          "<b>✅ Оплата получена, криптовалюта отправлена!</b>\n\n"
-          f"📦 Товар: <b>{product_info['title']}</b>\n"
-          f"🌐 Сеть: <b>{network}</b>\n"
-          f"💎 Средства успешно доставлены.",
-          InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
-      )
-    try:
-      if product_info.get("amount", 0) >= 300:
-        user_id = callback.from_user.id
-        user_record = bot_db.get_user(user_id)
-        if user_record and len(user_record) > 1 and user_record[1]:
-          referrer_id = user_record[1]
-          ref_current_balance = (
-              bot_db.get_user(referrer_id)[0]
-              if bot_db.get_user(referrer_id)
-              else 0
-          )
-          new_ref_balance = ref_current_balance + REFERRAL_BONUS
-          bot_db.update_balance(referrer_id, new_ref_balance)
-          await callback.message.bot.send_message(
-              referrer_id,
-              f"🎉 <b>Реферальный бонус!</b>\n\n"
-              f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
-              f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
-              parse_mode="HTML",
-          )
-    except Exception as e:
-      logger.error(f"Ошибка начисления реферального бонуса: {e}")
-                     
+      product_info = PRICES.get(prod_key, {"title": "Товар", "amount": 0})
       buyer = callback.from_user
+      buyer_label = f"@{buyer.username}" if buyer.username else html.escape(buyer.first_name or f"ID {buyer.id}")
+
+      # 1. Автоматическая доставка звёзд через Fragment API
+      if prod_key.startswith("prod_stars_"):
+        star_qty = product_info.get("quantity", 50)
+        frag_res = await deliver_stars_via_fragment(recipient=address, quantity=star_qty)
+
+        if frag_res.get("ok"):
+          logger.info(f"Fragment API: {star_qty} звёзд успешно отправлено на {address}")
+          await safe_edit(
+              callback,
+              "<b>✅ Оплата получена! Звёзды отправлены! ⭐</b>\n\n"
+              f"📦 Товар: <b>{product_info['title']}</b>\n"
+              f"🎯 Получатель: <code>{address}</code>\n\n"
+              "⚡ <i>Звёзды автоматически отправлены на ваш аккаунт через Fragment API!</i>",
+              InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+          )
+          admin_text = (
+              "<b>⚡ [АВТО-ВЫДАЧА FRAGMENT] ЗВЁЗДЫ ДОСТАВЛЕНЫ!</b>\n\n"
+              f"<b>📦 Товар:</b> {product_info['title']}\n"
+              f"<b>👤 Покупатель:</b> {buyer_label} (ID: <code>{buyer.id}</code>)\n"
+              f"<b>🎯 Получатель:</b> <code>{address}</code>\n"
+              f"<b>💰 Оплачено:</b> <b>{product_info['amount']} ₽</b> ({invoice.amount} {invoice.asset})\n"
+              f"<b>🆔 Инвойс CryptoBot:</b> <code>#{invoice.invoice_id}</code>\n"
+              "<b>Статус:</b> ✅ Успешно отправлено через Fragment"
+          )
+        else:
+          logger.error(f"Fragment API ошибка: {frag_res.get('error')}")
+          await safe_edit(
+              callback,
+              "<b>✅ Оплата подтверждена!</b>\n\n"
+              f"📦 Товар: <b>{product_info['title']}</b>\n"
+              f"🎯 Получатель: <code>{address}</code>\n\n"
+              "⏳ <i>Заказ принят в обработку. Звёзды поступят на ваш аккаунт в течение нескольких минут!</i>",
+              InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+          )
+          admin_text = (
+              "<b>⚠️ [ТРЕБУЕТСЯ РУЧНАЯ ВЫДАЧА ЗВЁЗД]</b>\n\n"
+              f"<b>📦 Товар:</b> {product_info['title']}\n"
+              f"<b>👤 Покупатель:</b> {buyer_label} (ID: <code>{buyer.id}</code>)\n"
+              f"<b>🎯 Получатель:</b> <code>{address}</code>\n"
+              f"<b>💰 Оплачено:</b> <b>{product_info['amount']} ₽</b> ({invoice.amount} {invoice.asset})\n"
+              f"<b>🆔 Инвойс CryptoBot:</b> <code>#{invoice.invoice_id}</code>\n"
+              f"<b>❌ Ошибка авто-выдачи Fragment:</b> <code>{frag_res.get('error')}</code>\n\n"
+              f"👉 <i>Пожалуйста, зайдите во Fragment и отправьте {star_qty} звёзд получателю вручную:</i> <code>{address}</code>"
+          )
+
+      # 2. Telegram Premium (полуавтоматический режим)
+      elif prod_key.startswith("prod_prem_"):
+        await safe_edit(
+            callback,
+            "<b>✅ Оплата получена! Заказ передан в обработку 💎</b>\n\n"
+            f"📦 Товар: <b>{product_info['title']}</b>\n"
+            f"🎯 Получатель: <code>{address}</code>\n\n"
+            "⏳ <i>Администратор активирует Telegram Premium на ваш аккаунт в течение 5–15 минут!</i>",
+            InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+        )
+        admin_text = (
+            "<b>💎 [НОВЫЙ ЗАКАЗ] TELEGRAM PREMIUM!</b>\n\n"
+            f"<b>📦 Товар:</b> {product_info['title']}\n"
+            f"<b>👤 Покупатель:</b> {buyer_label} (ID: <code>{buyer.id}</code>)\n"
+            f"<b>🎯 Получатель:</b> <code>{address}</code>\n"
+            f"<b>💰 Оплачено:</b> <b>{product_info['amount']} ₽</b> ({invoice.amount} {invoice.asset})\n"
+            f"<b>🆔 Инвойс CryptoBot:</b> <code>#{invoice.invoice_id}</code>\n\n"
+            f"👉 <i>Подарите подписку Telegram Premium получателю:</i> <code>{address}</code>"
+        )
+
+      # 3. Криптовалюта (GRAM в сети TON)
+      else:
+        await safe_edit(
+            callback,
+            "<b>✅ Оплата получена!</b>\n\n"
+            f"📦 Товар: <b>{product_info['title']}</b>\n"
+            f"🌐 Сеть: <b>{network}</b>\n\n"
+            "💎 <i>Средства успешно зачислены.</i>",
+            InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+        )
+        admin_text = (
+            "<b>🪙 [НОВЫЙ ЗАКАЗ] КРИПТОВАЛЮТА!</b>\n\n"
+            f"<b>📦 Товар:</b> {product_info['title']} ({network})\n"
+            f"<b>👤 Покупатель:</b> {buyer_label} (ID: <code>{buyer.id}</code>)\n"
+            f"<b>🎯 Получатель:</b> <code>{address}</code>\n"
+            f"<b>💰 Оплачено:</b> <b>{product_info['amount']} ₽</b> ({invoice.amount} {invoice.asset})\n"
+            f"<b>🆔 Инвойс CryptoBot:</b> <code>#{invoice.invoice_id}</code>"
+        )
+
+      # Уведомление администратора
+      try:
+        await callback.bot.send_message(ADMIN_ID, admin_text, parse_mode="HTML")
+      except Exception as e:
+        logger.error(f"Не удалось отправить уведомление админу: {e}")
+
+      # Реферальный бонус (при покупке от 300 руб)
+      try:
+        if product_info.get("amount", 0) >= 300:
+          user_id = buyer.id
+          user_record = bot_db.get_user(user_id)
+          if user_record and len(user_record) > 1 and user_record[1]:
+            referrer_id = user_record[1]
+            ref_current_balance = (
+                bot_db.get_user(referrer_id)[0]
+                if bot_db.get_user(referrer_id)
+                else 0
+            )
+            new_ref_balance = ref_current_balance + REFERRAL_BONUS
+            bot_db.update_balance(referrer_id, new_ref_balance)
+            await callback.bot.send_message(
+                referrer_id,
+                f"🎉 <b>Реферальный бонус!</b>\n\n"
+                f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
+                f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
+                parse_mode="HTML",
+            )
+      except Exception as e:
+        logger.error(f"Ошибка начисления реферального бонуса: {e}")
+
+      # Публикация в канал отзывов
       await publish_to_reviews_channel(
           order_id=invoice.invoice_id,
           product_title=product_info["title"],
@@ -976,7 +1110,7 @@ async def check_crypto_payment(callback: CallbackQuery):
           amount_rub=product_info["amount"],
       )
     else:
-      await callback.answer("⏳ Счет еще не оплачен. Оплатите счет и нажмите кнопку снова.", show_alert=True)
+      await callback.answer("⏳ Счет еще не оплачен. Оплатите счет в CryptoBot и нажмите кнопку снова.", show_alert=True)
   except Exception as e:
     logger.error(f"Ошибка проверки счета крипты: {e}")
     await callback.answer("⚠️ Произошла ошибка при проверке счета.", show_alert=True)
