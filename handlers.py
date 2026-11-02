@@ -342,8 +342,9 @@ def back_keyboard():
   )
 
 
-OFERTA_URL = "https://telegra.ph/Polzovatelskoe-soglashenie-i-Publichnaya-oferta-GumStars-11-02"
-DOCS_URL = "https://telegra.ph/Dokumenty-i-Politika-konfidencialnosti-GumStars-11-02"
+OFERTA_URL = "https://telegra.ph/Publichnaya-oferta-GumStars-11-02"
+DOCS_URL = "https://telegra.ph/Dokumenty-i-Politika-GumStars-11-02"
+
 
 
 def get_other_inline_keyboard():
@@ -565,10 +566,7 @@ async def text_support(message: Message, state: FSMContext):
   await state.set_state(user_states.waiting_for_support)
   await message.answer(
       "<b>🛟 Служба поддержки GumStars</b>\n\n"
-      "Отправьте в чат вашу проблему или вопрос — мы ответим максимально быстро.\n\n"
-      "• Telegram поддержки: @GumNyam1\n"
-      "• Электронная почта: <code>gumsupport@gmail.com</code>\n"
-      "• Время работы: ежедневно 10:00 – 23:00 МСК",
+      "Отправьте в чат вашу проблему или вопрос — мы ответим максимально быстро.",
       parse_mode="HTML"
   )
 
@@ -600,13 +598,15 @@ async def open_other_menu_callback(callback: CallbackQuery):
 @rt.callback_query(F.data.in_({"show_contacts_only", "doc_contacts"}))
 async def contacts_only_callback(callback: CallbackQuery):
   text = (
-      "📬 <b>Контакты технической поддержки:</b>\n\n"
-      "📧 <code>gumsupport@gmail.com</code>"
+      "📬 <b>Контакты технической поддержки GumStars</b>\n\n"
+      "По всем вопросам и обращениям обращайтесь на нашу официальную почту:\n\n"
+      "📧 <b>Электронная почта:</b> <code>gumsupport@gmail.com</code>\n\n"
+      "<i>(Нажмите на адрес почты выше, чтобы скопировать его)</i>"
   )
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="✉️ gumsupport@gmail.com", url="mailto:gumsupport@gmail.com")],
           [InlineKeyboardButton(text="« Назад в Прочее", callback_data="open_other_menu")],
+          [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
   await safe_edit(callback, text, kb)
@@ -616,13 +616,15 @@ async def contacts_only_callback(callback: CallbackQuery):
 @rt.message(Command("contacts"))
 async def cmd_contacts_only(message: Message):
   text = (
-      "📬 <b>Контакты технической поддержки:</b>\n\n"
-      "📧 <code>gumsupport@gmail.com</code>"
+      "📬 <b>Контакты технической поддержки GumStars</b>\n\n"
+      "По всем вопросам и обращениям обращайтесь на нашу официальную почту:\n\n"
+      "📧 <b>Электронная почта:</b> <code>gumsupport@gmail.com</code>\n\n"
+      "<i>(Нажмите на адрес почты выше, чтобы скопировать его)</i>"
   )
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="✉️ gumsupport@gmail.com", url="mailto:gumsupport@gmail.com")],
           [InlineKeyboardButton(text="« Назад в Прочее", callback_data="open_other_menu")],
+          [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
   await message.answer(text, reply_markup=kb, parse_mode="HTML")
