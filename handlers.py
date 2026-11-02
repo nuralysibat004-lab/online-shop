@@ -124,22 +124,22 @@ PRICES = {
         "quantity": 2500,
     },
     "prod_prem_3": {
-        "amount": 1050,
-        "usdt": 13.03,
+        "amount": 1150,
+        "usdt": 14.22,
         "title": "Telegram Premium (3 месяца)",
         "type": "premium",
         "months": 3,
     },
     "prod_prem_6": {
-        "amount": 1400,
-        "usdt": 17.38,
+        "amount": 1850,
+        "usdt": 22.88,
         "title": "Telegram Premium (6 месяцев)",
         "type": "premium",
         "months": 6,
     },
     "prod_prem_12": {
-        "amount": 2450,
-        "usdt": 30.42,
+        "amount": 3300,
+        "usdt": 40.80,
         "title": "Telegram Premium (12 месяцев)",
         "type": "premium",
         "months": 12,
@@ -1165,6 +1165,7 @@ async def check_crypto_payment(callback: CallbackQuery):
             "⏳ <i>Администратор активирует Telegram Premium на ваш аккаунт в течение 5–15 минут!</i>",
             InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
         )
+        source_tip = "в самом Telegram (напрямую дешевле)" if prod_key == "prod_prem_3" else "через Fragment"
         admin_text = (
             "<b>💎 [НОВЫЙ ЗАКАЗ] TELEGRAM PREMIUM!</b>\n\n"
             f"<b>📦 Товар:</b> {product_info['title']}\n"
@@ -1172,7 +1173,7 @@ async def check_crypto_payment(callback: CallbackQuery):
             f"<b>🎯 Получатель:</b> <code>{address}</code>\n"
             f"<b>💰 Оплачено:</b> <b>{product_info['amount']} ₽</b> ({invoice.amount} {invoice.asset})\n"
             f"<b>🆔 Инвойс CryptoBot:</b> <code>#{invoice.invoice_id}</code>\n\n"
-            f"👉 <i>Подарите подписку Telegram Premium получателю:</i> <code>{address}</code>"
+            f"👉 <i>Подарите подписку {source_tip} получателю:</i> <code>{address}</code>"
         )
 
       # 3. Криптовалюта (GRAM в сети TON)
@@ -1406,9 +1407,9 @@ async def show_products(message: Message, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 3 месяца — 1 050 ₽", callback_data="prod_prem_3")],
-            [InlineKeyboardButton(text="💎 6 месяцев — 1 400 ₽", callback_data="prod_prem_6")],
-            [InlineKeyboardButton(text="💎 12 месяцев — 2 450 ₽", callback_data="prod_prem_12")],
+            [InlineKeyboardButton(text="💎 3 месяца — 1 150 ₽", callback_data="prod_prem_3")],
+            [InlineKeyboardButton(text="💎 6 месяцев — 1 850 ₽", callback_data="prod_prem_6")],
+            [InlineKeyboardButton(text="💎 12 месяцев — 3 300 ₽", callback_data="prod_prem_12")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")],
         ]
     )
