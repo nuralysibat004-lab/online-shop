@@ -326,7 +326,10 @@ def get_main_reply_keyboard():
               KeyboardButton(text="👤 Профиль"),
           ],
           [KeyboardButton(text="💬 Отзывы"), KeyboardButton(text="👥 Рефералы")],
-          [KeyboardButton(text="🛟 Поддержка")],
+          [
+              KeyboardButton(text="🛟 Поддержка"),
+              KeyboardButton(text="⚙️ Прочее"),
+          ],
       ],
       resize_keyboard=True,
       input_field_placeholder="Выберите пункт меню 👇",
@@ -336,6 +339,21 @@ def get_main_reply_keyboard():
 def back_keyboard():
   return InlineKeyboardMarkup(
       inline_keyboard=[[InlineKeyboardButton(text="🔙 Вернуться в меню", callback_data="back_to_menu")]]
+  )
+
+
+OFERTA_URL = "https://telegra.ph/Polzovatelskoe-soglashenie-i-Publichnaya-oferta-GumStars-11-02"
+DOCS_URL = "https://telegra.ph/Dokumenty-i-Politika-konfidencialnosti-GumStars-11-02"
+
+
+def get_other_inline_keyboard():
+  return InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="📑 Оферта", url=OFERTA_URL)],
+          [InlineKeyboardButton(text="📄 Документы", url=DOCS_URL)],
+          [InlineKeyboardButton(text="📬 Контакты", callback_data="show_contacts_only")],
+          [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+      ]
   )
 
 
@@ -418,6 +436,7 @@ async def start_handler(
       f"💎 Реферальная система:\n"
       f"• Приглашай друзей по своей ссылке: <code>{ref_link}</code>\n"
       f"• Когда твой друг купит товар на сумму от 300 ₽, тебе на баланс автоматически зачислится <b>{REFERRAL_BONUS}</b> ⭐!\n\n"
+      f"⚙️ Оферта, документы и контакты доступны в разделе <b>«⚙️ Прочее»</b>.\n\n"
       f"Выберите нужный раздел в меню ниже 👇"
   )
   await message.answer(text, reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
@@ -429,6 +448,7 @@ async def back_to_menu_callback(callback: CallbackQuery, state: FSMContext):
   user_name = html.escape(callback.from_user.first_name or "друг")
   text = (
       f"<b>Добро пожаловать, {user_name}! Ты попал в GumStars — лучший бот по покупке криптовалюты и цифровых товаров ⭐</b>\n\n"
+      f"⚙️ Оферта, документы и контакты доступны в разделе <b>«⚙️ Прочее»</b>.\n\n"
       f"Выберите нужный раздел в меню ниже 👇"
   )
   try:
@@ -543,7 +563,108 @@ async def text_ref(message: Message, state: FSMContext):
 @rt.message(F.text == "🛟 Поддержка")
 async def text_support(message: Message, state: FSMContext):
   await state.set_state(user_states.waiting_for_support)
-  await message.answer("<b>🛟 Служба поддержки</b>\n\nОтправьте в чат вашу проблему или вопрос — мы постараемся ответить максимально быстро.", parse_mode="HTML")
+  await message.answer(
+      "<b>🛟 Служба поддержки GumStars</b>\n\n"
+      "Отправьте в чат вашу проблему или вопрос — мы ответим максимально быстро.\n\n"
+      "• Telegram поддержки: @GumNyam1\n"
+      "• Электронная почта: <code>gumsupport@gmail.com</code>\n"
+      "• Время работы: ежедневно 10:00 – 23:00 МСК",
+      parse_mode="HTML"
+  )
+
+
+@rt.message(F.text.in_({"⚙️ Прочее", "Прочее", "прочее", "📄 Документы и оферта", "Документы", "Оферта", "Контакты"}))
+@rt.message(Command("more"))
+@rt.message(Command("other"))
+@rt.message(Command("docs"))
+@rt.message(Command("legal"))
+async def text_other_section(message: Message, state: FSMContext):
+  await state.clear()
+  text = (
+      "⚙️ <b>Раздел: Прочее</b>\n\n"
+      "Выберите интересующий пункт ниже:"
+  )
+  await message.answer(text, reply_markup=get_other_inline_keyboard(), parse_mode="HTML")
+
+
+@rt.callback_query(F.data.in_({"open_other_menu", "doc_menu"}))
+async def open_other_menu_callback(callback: CallbackQuery):
+  text = (
+      "⚙️ <b>Раздел: Прочее</b>\n\n"
+      "Выберите интересующий пункт ниже:"
+  )
+  await safe_edit(callback, text, get_other_inline_keyboard())
+  await callback.answer()
+
+
+@rt.callback_query(F.data.in_({"show_contacts_only", "doc_contacts"}))
+async def contacts_only_callback(callback: CallbackQuery):
+  text = (
+      "📬 <b>Контакты технической поддержки:</b>\n\n"
+      "📧 <code>gumsupport@gmail.com</code>"
+  )
+  kb = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="✉️ gumsupport@gmail.com", url="mailto:gumsupport@gmail.com")],
+          [InlineKeyboardButton(text="« Назад в Прочее", callback_data="open_other_menu")],
+      ]
+  )
+  await safe_edit(callback, text, kb)
+  await callback.answer()
+
+
+@rt.message(Command("contacts"))
+async def cmd_contacts_only(message: Message):
+  text = (
+      "📬 <b>Контакты технической поддержки:</b>\n\n"
+      "📧 <code>gumsupport@gmail.com</code>"
+  )
+  kb = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="✉️ gumsupport@gmail.com", url="mailto:gumsupport@gmail.com")],
+          [InlineKeyboardButton(text="« Назад в Прочее", callback_data="open_other_menu")],
+      ]
+  )
+  await message.answer(text, reply_markup=kb, parse_mode="HTML")
+
+
+@rt.message(Command("terms"))
+@rt.message(Command("oferta"))
+async def cmd_terms(message: Message):
+  kb = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="📑 Открыть оферту (Telegra.ph)", url=OFERTA_URL)],
+          [InlineKeyboardButton(text="« Назад в Прочее", callback_data="open_other_menu")],
+      ]
+  )
+  await message.answer("📑 <b>Публичная оферта и Пользовательское соглашение:</b>", reply_markup=kb, parse_mode="HTML")
+
+
+@rt.message(Command("privacy"))
+@rt.message(Command("policy"))
+@rt.message(Command("refund"))
+async def cmd_docs_teleg(message: Message):
+  kb = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="📄 Открыть документы (Telegra.ph)", url=DOCS_URL)],
+          [InlineKeyboardButton(text="« Назад в Прочее", callback_data="open_other_menu")],
+      ]
+  )
+  await message.answer("📄 <b>Документы и политика конфиденциальности:</b>", reply_markup=kb, parse_mode="HTML")
+
+
+@rt.callback_query(F.data.in_({"doc_terms", "doc_privacy", "doc_refund"}))
+async def doc_teleg_callback(callback: CallbackQuery):
+  url = OFERTA_URL if callback.data == "doc_terms" else DOCS_URL
+  label = "📑 Открыть оферту" if callback.data == "doc_terms" else "📄 Открыть документы"
+  kb = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text=label, url=url)],
+          [InlineKeyboardButton(text="« Назад в Прочее", callback_data="open_other_menu")],
+      ]
+  )
+  await safe_edit(callback, "📄 <b>Ознакомьтесь с официальным документом по ссылке ниже:</b>", kb)
+  await callback.answer()
 
 @rt.callback_query(F.data == "ref")
 async def ref_callback(callback: CallbackQuery, state: FSMContext):
