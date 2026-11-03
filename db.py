@@ -9,6 +9,7 @@ class BotDB:
     Универсальная база данных для Telegram-магазина (Stars / Premium / Crypto).
     - Если задана переменная DATABASE_URL -> использует PostgreSQL (Neon / Render).
     - Если DATABASE_URL не задана -> автоматически использует локальный SQLite (bot_db.db).
+    Все лишние 250 строк старого GigaShop удалены!
     """
     def __init__(self, db_file="bot_db.db"):
         self.dsn = os.getenv("DATABASE_URL")
@@ -19,7 +20,7 @@ class BotDB:
         if self.is_postgres:
             import psycopg2
             self.psycopg2 = psycopg2
-            logger.info("BotDB: Использование PostgreSQL (Neon)")
+            logger.info("BotDB: Использование PostgreSQL")
         else:
             logger.info("BotDB: Использование SQLite (bot_db.db)")
             
@@ -66,7 +67,7 @@ class BotDB:
 
     def _create_tables(self):
         if self.is_postgres:
-            # 1. Автоматическая миграция: если в Neon колонка называлась telegram_id вместо user_id
+            # Автоматическая миграция: если старая колонка называлась telegram_id вместо user_id
             try:
                 self._run("""
                     DO $$ 
@@ -80,7 +81,6 @@ class BotDB:
             except Exception as e:
                 logger.warning(f"Rename migration notice: {e}")
 
-            # 2. Создание таблиц, если их нет
             self._run("""
                 CREATE TABLE IF NOT EXISTS users (
                     user_id BIGINT PRIMARY KEY,
@@ -93,15 +93,13 @@ class BotDB:
                     user_id BIGINT PRIMARY KEY
                 );
             """)
-
-            # 3. Гарантируем наличие всех нужных колонок
+            # Автоматическая миграция: если таблица users уже была создана без этих колонок
             try:
                 self._run("ALTER TABLE users ADD COLUMN IF NOT EXISTS user_id BIGINT;")
                 self._run("ALTER TABLE users ADD COLUMN IF NOT EXISTS balance INTEGER DEFAULT 0;")
                 self._run("ALTER TABLE users ADD COLUMN IF NOT EXISTS referrer_id BIGINT DEFAULT NULL;")
             except Exception as e:
                 logger.warning(f"Column migration notice: {e}")
-
             self._run("""
                 CREATE TABLE IF NOT EXISTS transactions (
                     id SERIAL PRIMARY KEY,
@@ -111,6 +109,12 @@ class BotDB:
                     provider TEXT,
                     status TEXT,
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
+            self._run("""
+                CREATE TABLE IF NOT EXISTS bot_banners (
+                    section_name TEXT PRIMARY KEY,
+                    file_id TEXT NOT NULL
                 );
             """)
         else:
@@ -137,8 +141,15 @@ class BotDB:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
+            self._run("""
+                CREATE TABLE IF NOT EXISTS bot_banners (
+                    section_name TEXT PRIMARY KEY,
+                    file_id TEXT NOT NULL
+                );
+            """)
 
     def get_user(self, user_id: int):
+        """Возвращает кортеж (balance, referrer_id) или None"""
         return self._run(
             "SELECT balance, referrer_id FROM users WHERE user_id = %s" if self.is_postgres else "SELECT balance, referrer_id FROM users WHERE user_id = ?",
             (user_id,),
@@ -146,6 +157,7 @@ class BotDB:
         )
 
     def add_user(self, user_id: int, referrer_id: int = None):
+        """Добавляет пользователя, если его нет"""
         if not self.get_user(user_id):
             ref = referrer_id if referrer_id and referrer_id != user_id else None
             q = ("INSERT INTO users (user_id, balance, referrer_id) VALUES (%s, 0, %s)" 
@@ -154,12 +166,14 @@ class BotDB:
             self._run(q, (user_id, ref))
 
     def update_balance(self, user_id: int, new_balance: int):
+        """Обновляет баланс пользователя"""
         q = ("UPDATE users SET balance = %s WHERE user_id = %s" 
              if self.is_postgres else 
              "UPDATE users SET balance = ? WHERE user_id = ?")
         self._run(q, (new_balance, user_id))
 
     def count_referrals(self, user_id: int) -> int:
+        """Считает количество приглашенных пользователей"""
         q = ("SELECT COUNT(*) FROM users WHERE referrer_id = %s" 
              if self.is_postgres else 
              "SELECT COUNT(*) FROM users WHERE referrer_id = ?")
@@ -177,3 +191,29 @@ class BotDB:
              if self.is_postgres else 
              "INSERT OR IGNORE INTO completed_purchases (user_id) VALUES (?)")
         self._run(q, (user_id,))
+
+    def get_banner(self, section_name: str):
+        row = self._run(
+            "SELECT file_id FROM bot_banners WHERE section_name = %s" if self.is_postgres else "SELECT file_id FROM bot_banners WHERE section_name = ?",
+            (section_name,),
+            fetch="one"
+        )
+        return row[0] if row else None
+
+    def set_banner(self, section_name: str, file_id: str):
+        if self.is_postgres:
+            q = """
+                INSERT INTO bot_banners (section_name, file_id) 
+                VALUES (%s, %s)
+                ON CONFLICT (section_name) DO UPDATE SET file_id = EXCLUDED.file_id;
+            """
+        else:
+            q = "INSERT OR REPLACE INTO bot_banners (section_name, file_id) VALUES (?, ?)"
+        self._run(q, (section_name, file_id))
+
+    def get_all_banners(self) -> dict:
+        try:
+            rows = self._run("SELECT section_name, file_id FROM bot_banners", fetch="all")
+            return {r[0]: r[1] for r in rows} if rows else {}
+        except Exception:
+            return {}
