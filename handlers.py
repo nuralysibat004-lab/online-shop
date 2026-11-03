@@ -2,6 +2,7 @@ import aiohttp
 import csv
 import hashlib
 import html
+import json
 import logging
 import os
 import random
@@ -316,20 +317,151 @@ async def safe_edit(
       raise
 
 
+BANNERS_FILE = "banners.json"
+
+def load_banners() -> dict:
+  if os.path.exists(BANNERS_FILE):
+    try:
+      with open(BANNERS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+    except Exception:
+      pass
+  return {}
+
+def save_banner_file_id(name: str, file_id: str):
+  banners = load_banners()
+  banners[name] = file_id
+  try:
+    with open(BANNERS_FILE, "w", encoding="utf-8") as f:
+      json.dump(banners, f, ensure_ascii=False, indent=2)
+  except Exception as e:
+    logger.error("Не удалось сохранить banner в banners.json: %s", e)
+
+SECTION_PATTERNS = {
+    "menu": ["menu", "меню", "161446"],
+    "crypto": ["crypto", "крипт", "114039"],
+    "stars": ["star", "звезд", "142345"],
+    "orders": ["order", "заказ", "131026"],
+    "profile": ["profile", "профил", "141012"],
+    "reviews": ["review", "отзыв", "163600"],
+    "referrals": ["referral", "ref", "рефер", "162856"],
+    "support": ["support", "поддерж", "134353"],
+    "other": ["other", "прочее", "141816"],
+}
+
+SECTION_NAMES_RU = {
+    "menu": "🏠 Главное меню",
+    "crypto": "🪙 Криптовалюта",
+    "stars": "⭐ Звёзды & Premium",
+    "orders": "📦 История заказов",
+    "profile": "👤 Профиль",
+    "reviews": "💬 Отзывы",
+    "referrals": "👥 Рефералы",
+    "support": "🛟 Поддержка",
+    "other": "⚙️ Прочее",
+}
+
 def get_banner(name: str):
-  """Ищет фото баннера в папке images или public/images, либо берет по надежной веб-ссылке"""
+  """
+  Ищет баннер:
+  1. Telegram file_id из banners.json (установлен прямо в Telegram через команду)
+  2. Локальный файл в images/, public/images/ или .
+  3. Поиск по имени файла/таймстемпу с телефона
+  """
+  banners = load_banners()
+  if name in banners and banners[name]:
+    return banners[name]
+
+  # Проверяем точное имя
   for folder in ["images", "public/images", "."]:
-    path = os.path.join(folder, f"{name}.png")
-    if os.path.exists(path):
+    for ext in [".png", ".jpg", ".jpeg"]:
+      p = os.path.join(folder, f"{name}{ext}")
+      if os.path.exists(p):
+        try:
+          return FSInputFile(p)
+        except Exception:
+          pass
+
+  # Проверяем совпадение по имени или таймстемпу телефона
+  patterns = SECTION_PATTERNS.get(name, [name])
+  for folder in ["images", "public/images", "."]:
+    if os.path.exists(folder):
       try:
-        return FSInputFile(path)
+        for fname in os.listdir(folder):
+          fname_low = fname.lower()
+          for p in patterns:
+            if p in fname_low and fname_low.endswith((".png", ".jpg", ".jpeg")):
+              return FSInputFile(os.path.join(folder, fname))
       except Exception:
         pass
-  # Автоматический fallback: если локальной папки нет, берем напрямую по ссылке
-  try:
-    return URLInputFile(f"https://ais-pre-xxy55tcdipd7rct3mrjbk5-656302551306.asia-east1.run.app/images/{name}.png")
-  except Exception:
-    return f"https://ais-pre-xxy55tcdipd7rct3mrjbk5-656302551306.asia-east1.run.app/images/{name}.png"
+
+  return None
+
+
+@rt.message(F.photo, F.caption.startswith(("/banner", "/setbanner")))
+@rt.message(F.text.startswith(("/banner", "/setbanner")))
+async def set_banner_handler(message: Message):
+  text_content = (message.caption or message.text or "").strip()
+  parts = text_content.split()
+
+  user_id = message.from_user.id
+  is_admin = (
+      (user_id in ADMIN_IDS)
+      or (user_id == ADMIN_ID)
+      or (ADMIN_PASSWORD and len(parts) >= 3 and parts[2] == ADMIN_PASSWORD)
+  )
+  if not is_admin:
+    return
+
+  if len(parts) < 2:
+    sections_list = "\n".join([f"• <code>/banner {k}</code> — {v}" for k, v in SECTION_NAMES_RU.items()])
+    await message.answer(
+        "🖼 <b>Установка баннеров разделов прямо из Telegram:</b>\n\n"
+        "Отправьте фотографию в этот чат и в подписи (caption) укажите команду:\n"
+        f"{sections_list}\n\n"
+        "<i>Или ответьте (Reply) командой на любое ранее отправленное фото!</i>",
+        parse_mode="HTML",
+    )
+    return
+
+  raw_sec = parts[1].strip().lower()
+  target_sec = None
+  for sec_key, aliases in SECTION_PATTERNS.items():
+    if raw_sec == sec_key or raw_sec in aliases:
+      target_sec = sec_key
+      break
+
+  if not target_sec:
+    await message.answer(
+        f"❌ Неизвестный раздел: <code>{html.escape(raw_sec)}</code>.\n"
+        f"Доступные разделы: <code>{', '.join(SECTION_NAMES_RU.keys())}</code>",
+        parse_mode="HTML",
+    )
+    return
+
+  photo_obj = None
+  if message.photo:
+    photo_obj = message.photo[-1]
+  elif message.reply_to_message and message.reply_to_message.photo:
+    photo_obj = message.reply_to_message.photo[-1]
+
+  if not photo_obj:
+    await message.answer(
+        f"❌ Фотография не найдена!\n"
+        f"Прикрепите картинку к сообщению с подписью <code>/banner {target_sec}</code> "
+        f"или ответьте этой командой на нужное фото.",
+        parse_mode="HTML",
+    )
+    return
+
+  save_banner_file_id(target_sec, photo_obj.file_id)
+  title = SECTION_NAMES_RU.get(target_sec, target_sec)
+  await message.answer(
+      f"🎉 <b>Баннер успешно установлен!</b>\n\n"
+      f"Раздел: <b>{title}</b> (<code>{target_sec}</code>)\n"
+      f"Теперь при входе в этот раздел бот будет мгновенно отправлять эту картинку! ✨",
+      parse_mode="HTML",
+  )
 
 
 async def send_section(
