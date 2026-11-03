@@ -371,15 +371,34 @@ async def safe_edit(
 BANNERS_FILE = "banners.json"
 
 def load_banners() -> dict:
+  banners = {}
+  # 1. Из базы данных Neon PostgreSQL (вечное облако, не сбрасывается при деплоях Render!)
+  try:
+    db_banners = bot_db.get_all_banners()
+    if db_banners:
+      banners.update(db_banners)
+  except Exception as e:
+    logger.debug("bot_db.get_all_banners error: %s", e)
+
+  # 2. Из локального файла banners.json
   if os.path.exists(BANNERS_FILE):
     try:
       with open(BANNERS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+        if isinstance(data, dict):
+          banners.update(data)
     except Exception:
       pass
-  return {}
+  return banners
 
 def save_banner_file_id(name: str, file_id: str):
+  # 1. Сохраняем в постоянную базу данных Neon
+  try:
+    bot_db.set_banner(name, file_id)
+  except Exception as e:
+    logger.error("Не удалось сохранить banner в bot_db: %s", e)
+
+  # 2. Дублируем в локальный файл banners.json
   banners = load_banners()
   banners[name] = file_id
   try:
@@ -415,15 +434,25 @@ SECTION_NAMES_RU = {
 def get_banner(name: str):
   """
   Ищет баннер:
-  1. Telegram file_id из banners.json (установлен прямо в Telegram через команду)
-  2. Локальный файл в images/, public/images/ или .
-  3. Поиск по имени файла/таймстемпу с телефона
+  1. Telegram file_id из базы данных Neon PostgreSQL (вечное облачное хранилище)
+  2. Telegram file_id из banners.json
+  3. Локальный файл в images/, public/images/ или .
+  4. Поиск по имени файла/таймстемпу с телефона
   """
+  # 1. Проверяем базу данных
+  try:
+    db_file_id = bot_db.get_banner(name)
+    if db_file_id:
+      return db_file_id
+  except Exception:
+    pass
+
+  # 2. Проверяем banners.json
   banners = load_banners()
   if name in banners and banners[name]:
     return banners[name]
 
-  # Проверяем точное имя
+  # 3. Проверяем точное имя на диске
   for folder in ["images", "public/images", "."]:
     for ext in [".png", ".jpg", ".jpeg"]:
       p = os.path.join(folder, f"{name}{ext}")
@@ -433,7 +462,7 @@ def get_banner(name: str):
         except Exception:
           pass
 
-  # Проверяем совпадение по имени или таймстемпу телефона
+  # 4. Проверяем совпадение по имени или таймстемпу телефона
   patterns = SECTION_PATTERNS.get(name, [name])
   for folder in ["images", "public/images", "."]:
     if os.path.exists(folder):
@@ -508,11 +537,30 @@ async def set_banner_handler(message: Message):
   save_banner_file_id(target_sec, photo_obj.file_id)
   title = SECTION_NAMES_RU.get(target_sec, target_sec)
   await message.answer(
-      f"🎉 <b>Баннер успешно установлен!</b>\n\n"
+      f"🎉 <b>Баннер успешно сохранен в базу Neon!</b>\n\n"
       f"Раздел: <b>{title}</b> (<code>{target_sec}</code>)\n"
-      f"Теперь при входе в этот раздел бот будет мгновенно отправлять эту картинку! ✨",
+      f"Теперь этот баннер привязан к облачной базе данных PostgreSQL и никогда не исчезнет при перезапусках бота или деплоях Render! ✨",
       parse_mode="HTML",
   )
+
+
+@rt.message(Command("banners"))
+async def cmd_banners_status(message: Message):
+  user_id = message.from_user.id
+  is_admin = (user_id in ADMIN_IDS) or (user_id == ADMIN_ID)
+  if not is_admin:
+    return
+
+  lines = ["<b>📊 Статус баннеров разделов в боте:</b>\n"]
+  for key, title in SECTION_NAMES_RU.items():
+    has_banner = bool(get_banner(key))
+    status = "✅ Установлен" if has_banner else "❌ Не установлен"
+    lines.append(f"• {title}: {status} (<code>/banner {key}</code>)")
+
+  lines.append(
+      "\n<i>💡 Отправьте любое фото с подписью <code>/banner &lt;раздел&gt;</code> или ответьте этой командой на фото, чтобы закрепить его навсегда в облачную базу данных!</i>"
+  )
+  await message.answer("\n".join(lines), parse_mode="HTML")
 
 
 async def send_section(
@@ -523,18 +571,18 @@ async def send_section(
 ):
   """Отправляет раздел меню с фото баннером (или текстом, если фото не найдено)"""
   banner = get_banner(banner_name)
-  bot = event.bot
-  chat_id = event.message.chat.id if isinstance(event, CallbackQuery) else event.chat.id
 
   if isinstance(event, CallbackQuery):
     msg = event.message
+    chat_id = msg.chat.id if msg else event.from_user.id
     if banner:
       try:
-        await msg.delete()
+        if msg:
+          await msg.delete()
       except Exception:
         pass
       try:
-        await bot.send_photo(
+        await event.bot.send_photo(
             chat_id=chat_id,
             photo=banner,
             caption=caption[:1024],
@@ -547,7 +595,7 @@ async def send_section(
           pass
         return
       except Exception as e:
-        logger.error(f"send_photo error in send_section: {e}")
+        logger.error(f"send_photo error in send_section for {banner_name}: {e}")
     await safe_edit(event, caption, reply_markup)
     try:
       await event.answer()
@@ -556,8 +604,7 @@ async def send_section(
   else:
     if banner:
       try:
-        await bot.send_photo(
-            chat_id=chat_id,
+        await event.answer_photo(
             photo=banner,
             caption=caption[:1024],
             reply_markup=reply_markup,
@@ -565,8 +612,19 @@ async def send_section(
         )
         return
       except Exception as e:
-        logger.error(f"send_photo error in send_section: {e}")
-    await bot.send_message(chat_id=chat_id, text=caption, reply_markup=reply_markup, parse_mode="HTML")
+        logger.error(f"answer_photo error in send_section for {banner_name}: {e}")
+        try:
+          await event.bot.send_photo(
+              chat_id=event.chat.id,
+              photo=banner,
+              caption=caption[:1024],
+              reply_markup=reply_markup,
+              parse_mode="HTML",
+          )
+          return
+        except Exception as e2:
+          logger.error(f"send_photo fallback error for {banner_name}: {e2}")
+    await event.answer(caption, reply_markup=reply_markup, parse_mode="HTML")
 
 
 
