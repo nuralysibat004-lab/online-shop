@@ -306,15 +306,66 @@ def get_referrals_count(user_id: int) -> int:
 
 
 async def safe_edit(
-    callback: CallbackQuery, text: str, reply_markup=None
+    event: CallbackQuery | Message, text: str, reply_markup=None
 ) -> None:
+  msg = event.message if isinstance(event, CallbackQuery) else event
+  if not msg:
+    return
+
+  is_photo = bool(getattr(msg, "photo", None) or getattr(msg, "caption", None) is not None)
+
+  if is_photo:
+    # Сообщение с фотографией (баннером) в Telegram редактируется исключительно через edit_caption
+    try:
+      await msg.edit_caption(
+          caption=text[:1024],
+          reply_markup=reply_markup,
+          parse_mode="HTML",
+      )
+      return
+    except Exception as e:
+      err = str(e).lower()
+      if "message is not modified" in err:
+        return
+      # При ошибке редактирования подписи (слишком длинный текст и т.д.) переходим к удалению и отправке
+  else:
+    # Обычное текстовое сообщение редактируется через edit_text
+    try:
+      await msg.edit_text(
+          text,
+          reply_markup=reply_markup,
+          parse_mode="HTML",
+      )
+      return
+    except Exception as e:
+      err = str(e).lower()
+      if "message is not modified" in err:
+        return
+      if "message to edit has no text" in err or "message is not a text" in err:
+        try:
+          await msg.edit_caption(
+              caption=text[:1024],
+              reply_markup=reply_markup,
+              parse_mode="HTML",
+          )
+          return
+        except Exception:
+          pass
+
+  # Надежный fallback: удаляем старое сообщение и шлем новое в чат
   try:
-    await callback.message.edit_text(
-        text, reply_markup=reply_markup, parse_mode="HTML"
+    await msg.delete()
+  except Exception:
+    pass
+  try:
+    await msg.bot.send_message(
+        chat_id=msg.chat.id,
+        text=text,
+        reply_markup=reply_markup,
+        parse_mode="HTML",
     )
   except Exception as e:
-    if "message is not modified" not in str(e):
-      raise
+    logger.error("safe_edit send_message error: %s", e)
 
 
 BANNERS_FILE = "banners.json"
@@ -472,34 +523,50 @@ async def send_section(
 ):
   """Отправляет раздел меню с фото баннером (или текстом, если фото не найдено)"""
   banner = get_banner(banner_name)
+  bot = event.bot
+  chat_id = event.message.chat.id if isinstance(event, CallbackQuery) else event.chat.id
+
   if isinstance(event, CallbackQuery):
+    msg = event.message
     if banner:
       try:
-        await event.message.answer_photo(
+        await msg.delete()
+      except Exception:
+        pass
+      try:
+        await bot.send_photo(
+            chat_id=chat_id,
             photo=banner,
-            caption=caption,
+            caption=caption[:1024],
             reply_markup=reply_markup,
             parse_mode="HTML",
         )
-        await event.answer()
+        try:
+          await event.answer()
+        except Exception:
+          pass
         return
-      except Exception:
-        pass
+      except Exception as e:
+        logger.error(f"send_photo error in send_section: {e}")
     await safe_edit(event, caption, reply_markup)
-    await event.answer()
+    try:
+      await event.answer()
+    except Exception:
+      pass
   else:
     if banner:
       try:
-        await event.answer_photo(
+        await bot.send_photo(
+            chat_id=chat_id,
             photo=banner,
-            caption=caption,
+            caption=caption[:1024],
             reply_markup=reply_markup,
             parse_mode="HTML",
         )
         return
-      except Exception:
-        pass
-    await event.answer(caption, reply_markup=reply_markup, parse_mode="HTML")
+      except Exception as e:
+        logger.error(f"send_photo error in send_section: {e}")
+    await bot.send_message(chat_id=chat_id, text=caption, reply_markup=reply_markup, parse_mode="HTML")
 
 
 
@@ -645,8 +712,11 @@ async def back_to_menu_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
   except Exception:
     pass
-  await send_section(callback.message, "menu", text, get_main_reply_keyboard())
-  await callback.answer()
+  await send_section(callback, "menu", text, get_main_reply_keyboard())
+  try:
+    await callback.answer()
+  except Exception:
+    pass
 
 
 @rt.message(F.text == "💬 Отзывы")
@@ -1542,17 +1612,34 @@ async def process_withdraw_amount(message: Message, state: FSMContext):
     logger.exception("Не удалось отправить уведомление админу (ID-%s)", ADMIN_ID)
 
 
+@rt.callback_query(F.data == "menu_stars")
+async def menu_stars_callback(callback: CallbackQuery, state: FSMContext):
+  await state.clear()
+  kb = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="⭐ Купить Telegram Stars", callback_data="cat_stars")],
+          [InlineKeyboardButton(text="💎 Купить Telegram Premium", callback_data="cat_premium")],
+          [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+      ]
+  )
+  await safe_edit(
+      callback,
+      "<b>⭐ Магазин Telegram Stars & Premium</b>\n\nВыберите категорию товара:",
+      kb,
+  )
+  await callback.answer()
+
+
 @rt.callback_query(F.data.in_({"cat_stars", "cat_premium"}))
 async def process_category(callback: CallbackQuery, state: FSMContext):
   category = "stars" if callback.data == "cat_stars" else "premium"
   await state.update_data(category=category)
 
-  # ИСПРАВЛЕНА КНОПКА НАЗАД: теперь возвращает в магазин звезд/премиума, а не ломает интерфейс
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
           [InlineKeyboardButton(text="👤 Себе", callback_data="recipient_self")],
           [InlineKeyboardButton(text="Другу (по username)", callback_data="recipient_friend")],
-          [InlineKeyboardButton(text="🔙 Назад", callback_data="cat_stars" if category == "stars" else "cat_premium")],
+          [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
       ]
   )
   await safe_edit(callback, "<b>👤 Кому отправляем заказ?</b>", kb)
@@ -1566,17 +1653,17 @@ async def recipient_self(callback: CallbackQuery, state: FSMContext):
   if not user_target.startswith("@") and not user_target.isdigit():
     user_target = f"@{user_target}"
   await state.update_data(target_user=user_target)
-  await show_products(callback.message, state)
+  await show_products(callback, state)
   await callback.answer()
 
 
 @rt.callback_query(BuySteps.choosing_recipient, F.data == "recipient_friend")
 async def recipient_friend(callback: CallbackQuery, state: FSMContext):
-  kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="cat_stars")]])
-  await callback.message.edit_text(
+  kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")]])
+  await safe_edit(
+      callback,
       "<b>✏️ Отправьте в чат @username получателя (например, <code>@durov</code>):</b>",
-      reply_markup=kb,
-      parse_mode="HTML",
+      kb,
   )
   await state.set_state(BuySteps.entering_username)
   await callback.answer()
@@ -1596,7 +1683,7 @@ async def process_username_input(message: Message, state: FSMContext):
   await show_products(message, state)
 
 
-async def show_products(message: Message, state: FSMContext):
+async def show_products(message: Message | CallbackQuery, state: FSMContext):
   data = await state.get_data()
   category = data.get("category")
 
@@ -1610,7 +1697,7 @@ async def show_products(message: Message, state: FSMContext):
             [InlineKeyboardButton(text="⭐ 500 звезд — 720 ₽", callback_data="prod_stars_500")],
             [InlineKeyboardButton(text="⭐ 1000 звезд — 1440 ₽", callback_data="prod_stars_1000")],
             [InlineKeyboardButton(text="⭐ 2500 звезд — 3600 ₽", callback_data="prod_stars_2500")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
     text = "<b>⭐ Выберите необходимый пакет звезд:</b>"
@@ -1620,7 +1707,7 @@ async def show_products(message: Message, state: FSMContext):
             [InlineKeyboardButton(text="💎 3 месяца — 1 150 ₽", callback_data="prod_prem_3")],
             [InlineKeyboardButton(text="💎 6 месяцев — 1 850 ₽", callback_data="prod_prem_6")],
             [InlineKeyboardButton(text="💎 12 месяцев — 3 300 ₽", callback_data="prod_prem_12")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="back_to_menu")],
+            [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
     text = "<b>💎 Выберите срок подписки TG Premium:</b>"
