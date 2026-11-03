@@ -17,6 +17,8 @@ from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 from aiogram.types import (
     CallbackQuery,
+    FSInputFile,
+    URLInputFile,
     InlineKeyboardButton,
     InlineKeyboardMarkup,
     KeyboardButton,
@@ -314,6 +316,61 @@ async def safe_edit(
       raise
 
 
+def get_banner(name: str):
+  """Ищет фото баннера в папке images или public/images, либо берет по надежной веб-ссылке"""
+  for folder in ["images", "public/images", "."]:
+    path = os.path.join(folder, f"{name}.png")
+    if os.path.exists(path):
+      try:
+        return FSInputFile(path)
+      except Exception:
+        pass
+  # Автоматический fallback: если локальной папки нет, берем напрямую по ссылке
+  try:
+    return URLInputFile(f"https://ais-pre-xxy55tcdipd7rct3mrjbk5-656302551306.asia-east1.run.app/images/{name}.png")
+  except Exception:
+    return f"https://ais-pre-xxy55tcdipd7rct3mrjbk5-656302551306.asia-east1.run.app/images/{name}.png"
+
+
+async def send_section(
+    event: Message | CallbackQuery,
+    banner_name: str,
+    caption: str,
+    reply_markup=None,
+):
+  """Отправляет раздел меню с фото баннером (или текстом, если фото не найдено)"""
+  banner = get_banner(banner_name)
+  if isinstance(event, CallbackQuery):
+    if banner:
+      try:
+        await event.message.answer_photo(
+            photo=banner,
+            caption=caption,
+            reply_markup=reply_markup,
+            parse_mode="HTML",
+        )
+        await event.answer()
+        return
+      except Exception:
+        pass
+    await safe_edit(event, caption, reply_markup)
+    await event.answer()
+  else:
+    if banner:
+      try:
+        await event.answer_photo(
+            photo=banner,
+            caption=caption,
+            reply_markup=reply_markup,
+            parse_mode="HTML",
+        )
+        return
+      except Exception:
+        pass
+    await event.answer(caption, reply_markup=reply_markup, parse_mode="HTML")
+
+
+
 def get_main_reply_keyboard():
   return ReplyKeyboardMarkup(
       keyboard=[
@@ -440,7 +497,7 @@ async def start_handler(
       f"⚙️ Оферта, документы и контакты доступны в разделе <b>«⚙️ Прочее»</b>.\n\n"
       f"Выберите нужный раздел в меню ниже 👇"
   )
-  await message.answer(text, reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
+  await send_section(message, "menu", text, get_main_reply_keyboard())
 
 
 @rt.callback_query(F.data == "back_to_menu")
@@ -456,7 +513,7 @@ async def back_to_menu_callback(callback: CallbackQuery, state: FSMContext):
     await callback.message.delete()
   except Exception:
     pass
-  await callback.message.answer(text, reply_markup=get_main_reply_keyboard(), parse_mode="HTML")
+  await send_section(callback.message, "menu", text, get_main_reply_keyboard())
   await callback.answer()
 
 
@@ -475,11 +532,11 @@ async def text_reviews(message: Message, state: FSMContext):
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
-  await message.answer(
-      "<b>💬 Отзывы и выполненные заказы!</b>\n\nЗдесь вы можете ознакомиться с реальными отзывами наших клиентов и списком выполненных заказов ✨",
-      reply_markup=kb,
-      parse_mode="HTML",
+  text = (
+      "<b>💬 Отзывы и выполненные заказы!</b>\n\n"
+      "Здесь вы можете ознакомиться с реальными отзывами наших клиентов и списком выполненных заказов ✨"
   )
+  await send_section(message, "reviews", text, kb)
 
 
 @rt.message(F.text == "🪙 Криптовалюта")
@@ -493,7 +550,12 @@ async def text_crypto_main(message: Message, state: FSMContext):
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
-  await message.answer("<b>🪙 Покупка криптовалюты</b>\n\nВыберите нужную монету:", reply_markup=keyboard, parse_mode="HTML")
+  await send_section(
+      message,
+      "crypto",
+      "<b>🪙 Покупка криптовалюты</b>\n\nВыберите нужную монету:",
+      keyboard,
+  )
 
 
 @rt.message(F.text == "⭐ Купить звёзды")
@@ -506,13 +568,28 @@ async def text_stars(message: Message, state: FSMContext):
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
-  await message.answer("<b>⭐ Магазин Telegram Stars & Premium</b>\n\nВыберите категорию товара:", reply_markup=kb, parse_mode="HTML")
+  await send_section(
+      message,
+      "stars",
+      "<b>⭐ Магазин Telegram Stars & Premium</b>\n\nВыберите категорию товара:",
+      kb,
+  )
 
 
 @rt.message(F.text == "📦 История заказов")
 async def text_orders(message: Message, state: FSMContext):
   await state.clear()
-  await message.answer("<b>📦 История заказов</b>\n\nУ вас пока нет активных или завершенных заказов.", parse_mode="HTML")
+  kb = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+      ]
+  )
+  await send_section(
+      message,
+      "orders",
+      "<b>📦 История заказов</b>\n\nУ вас пока нет активных или завершенных заказов.",
+      kb,
+  )
 
 
 @rt.message(F.text == "👤 Профиль")
@@ -534,7 +611,7 @@ async def text_profile(message: Message, state: FSMContext):
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
-  await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+  await send_section(message, "profile", text, keyboard)
 
 
 @rt.message(F.text == "👥 Рефералы")
@@ -558,17 +635,18 @@ async def text_ref(message: Message, state: FSMContext):
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
-  await message.answer(text, reply_markup=keyboard, parse_mode="HTML")
+  await send_section(message, "referrals", text, keyboard)
 
 
 @rt.message(F.text == "🛟 Поддержка")
 async def text_support(message: Message, state: FSMContext):
   await state.set_state(user_states.waiting_for_support)
-  await message.answer(
+  support_text = (
       "<b>🛟 Служба поддержки GumStars</b>\n\n"
-      "Отправьте в чат вашу проблему или вопрос — мы ответим максимально быстро.",
-      parse_mode="HTML"
+      "Отправьте в чат вашу проблему или вопрос — мы ответим максимально быстро.\n\n"
+      "📧 Официальная почта: <code>gumsupport@gmail.com</code>"
   )
+  await send_section(message, "support", support_text, back_keyboard())
 
 
 @rt.message(F.text.in_({"⚙️ Прочее", "Прочее", "прочее", "📄 Документы и оферта", "Документы", "Оферта", "Контакты"}))
@@ -582,7 +660,7 @@ async def text_other_section(message: Message, state: FSMContext):
       "⚙️ <b>Раздел: Прочее</b>\n\n"
       "Выберите интересующий пункт ниже:"
   )
-  await message.answer(text, reply_markup=get_other_inline_keyboard(), parse_mode="HTML")
+  await send_section(message, "other", text, get_other_inline_keyboard())
 
 
 @rt.callback_query(F.data.in_({"open_other_menu", "doc_menu"}))
