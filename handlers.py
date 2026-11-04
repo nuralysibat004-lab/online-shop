@@ -1508,20 +1508,24 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
   rub_price = product_info.get("amount", 0)
   usdt_amount = product_info.get("usdt", 0)
 
-  # Формируем счет CryptoBot (USDT)
+  # Для USDT и USDC оплата только через СБП (рублями) и Telegram Stars (звёздами)!
+  is_stable = prod_key.startswith("prod_crypto_usdt") or prod_key.startswith("prod_crypto_usdc")
+
+  # Формируем счет CryptoBot (только для TON/GRAM)
   cryptobot_url = None
   cryptobot_id = None
-  try:
-    invoice = await cryptopay.create_invoice(
-        asset="USDT",
-        amount=usdt_amount,
-        description=f"Покупка {product_info['title']} ({network}) для {target_user} ({rub_price} ₽)",
-        payload=f"{prod_key}:{target_user}:{network}",
-    )
-    cryptobot_url = invoice.bot_invoice_url
-    cryptobot_id = invoice.invoice_id
-  except Exception as e:
-    logger.error(f"Ошибка создания счета CryptoBot (крипта): {e}")
+  if not is_stable:
+    try:
+      invoice = await cryptopay.create_invoice(
+          asset="USDT",
+          amount=usdt_amount,
+          description=f"Покупка {product_info['title']} ({network}) для {target_user} ({rub_price} ₽)",
+          payload=f"{prod_key}:{target_user}:{network}",
+      )
+      cryptobot_url = invoice.bot_invoice_url
+      cryptobot_id = invoice.invoice_id
+    except Exception as e:
+      logger.error(f"Ошибка создания счета CryptoBot (крипта): {e}")
 
   # Формируем счет CrystalPAY (СБП) в рублях
   crystal_res = await create_crystalpay_invoice(
@@ -1532,7 +1536,7 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
 
   buttons = []
 
-  # Кнопка СБП (CrystalPAY)
+  # 1. Кнопка СБП (CrystalPAY)
   if crystal_res.get("ok") and crystal_res.get("url"):
     crystal_id = str(crystal_res.get("invoice_id"))
     CRYSTAL_PENDING_ORDERS[crystal_id] = {
@@ -1544,12 +1548,12 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
     buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=crystal_res["url"])])
     buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_cryst_{crystal_id}")])
 
-  # Если есть нативные Telegram Stars
+  # 2. Кнопка оплаты Telegram Stars
   if product_info.get("stars"):
     buttons.append([InlineKeyboardButton(text=f"⭐ Оплатить звёздами ({product_info['stars']} Stars)", callback_data=f"buystars_crypto_{prod_key}")])
 
-  # Кнопка CryptoBot
-  if cryptobot_url:
+  # 3. Кнопка CryptoBot (только для TON/GRAM)
+  if not is_stable and cryptobot_url:
     buttons.append([InlineKeyboardButton(text=f"💎 Оплатить через CryptoBot ({usdt_amount} USDT)", url=cryptobot_url)])
     buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату CryptoBot", callback_data=f"checkcrypto_{cryptobot_id}")])
 
@@ -1557,16 +1561,22 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
 
   kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
+  methods_text = (
+      "• <b>СБП (Система быстрых платежей)</b> — рублями через любой банк РФ\n"
+      "• <b>Telegram Stars</b> — моментально за звёзды Telegram"
+      if is_stable else
+      "• <b>СБП (Система быстрых платежей)</b> — рублями через любой банк РФ\n"
+      "• <b>CryptoBot</b> — в USDT/TON прямо в Telegram"
+  )
+
   order_text = (
       "<b>✅ Заказ криптовалюты успешно сформирован!</b>\n\n"
       f"📦 Товар: <b>{product_info['title']}</b>\n"
       f"🌐 Сеть: <b>{network}</b>\n"
       f"👤 Получатель: <code>{target_user}</code>\n"
-      f"💰 Стоимость: <b>{rub_price} ₽</b> (или <b>{usdt_amount} USDT</b>)\n\n"
+      f"💰 Стоимость: <b>{rub_price} ₽</b>" + (f" (или <b>{product_info['stars']} ⭐</b>)" if product_info.get("stars") else "") + "\n\n"
       "<b>Выберите удобный способ оплаты:</b>\n"
-      "• <b>СБП (Система быстрых платежей)</b> — рублями через любой банк РФ\n"
-      "• <b>CryptoBot</b> — в USDT/TON прямо в Telegram\n"
-      "• <b>Telegram Stars</b> — за звёзды Telegram"
+      f"{methods_text}"
   )
 
   await safe_edit(callback, order_text, kb)
