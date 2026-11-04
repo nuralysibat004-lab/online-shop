@@ -712,6 +712,49 @@ async def cmd_broadcast(message: Message, command: CommandObject = None):
   )
 
 
+@rt.message(Command("setbalance"))
+@rt.message(Command("set_balance"))
+async def cmd_set_balance(message: Message, command: CommandObject = None):
+  """Установка баланса пользователя (для администратора)"""
+  user_id = message.from_user.id
+  is_admin = (user_id in ADMIN_IDS) or (user_id == ADMIN_ID)
+  if not is_admin:
+    return
+
+  args = (command.args or "").strip().split() if command else []
+  if not args:
+    await message.answer(
+        "<b>⚙️ Управление балансом звёзд (Команда админа):</b>\n\n"
+        "• <code>/setbalance 999</code> — установить себе 999 звёзд\n"
+        "• <code>/setbalance 7461353872 999</code> — установить 999 звёзд конкретному ID\n\n"
+        f"Ваш текущий баланс: <b>{get_balance(user_id)}</b> ⭐",
+        parse_mode="HTML",
+    )
+    return
+
+  if len(args) == 1:
+    target_id = user_id
+    try:
+      amount = int(args[0])
+    except ValueError:
+      await message.answer("❌ Сумма должна быть числом!")
+      return
+  else:
+    try:
+      target_id = int(args[0])
+      amount = int(args[1])
+    except ValueError:
+      await message.answer("❌ Формат: <code>/setbalance &lt;ID&gt; &lt;кол-во&gt;</code>")
+      return
+
+  bot_db.update_balance(target_id, amount)
+  await message.answer(
+      f"✅ <b>Баланс пользователя <code>{target_id}</code> успешно изменён!</b>\n\n"
+      f"⭐ Новый баланс: <b>{amount}</b> звёзд.",
+      parse_mode="HTML",
+  )
+
+
 
 async def send_section(
     event: Message | CallbackQuery,
@@ -1204,11 +1247,11 @@ async def ref_leaderboard_callback(callback: CallbackQuery):
       s_id = str(ref_id)
       masked_id = s_id[:4] + "***" if len(s_id) >= 6 else s_id
       is_me = " (Вы)" if ref_id == user_id else ""
-      bonus = cnt * REFERRAL_BONUS
-      lines.append(f"{medal} <code>ID {masked_id}</code>{is_me} — <b>{cnt}</b> друзей (+{bonus} ⭐)")
+      lines.append(f"{medal} <code>ID {masked_id}</code>{is_me} — <b>{cnt}</b> приглашено")
 
   lines.append(f"\n👤 <b>Ваш результат:</b> позиция <b>#{my_rank}</b> (приглашено: <b>{my_count}</b>)")
-  lines.append(f"\n<i>Приглашайте друзей и получайте по <b>{REFERRAL_BONUS} ⭐</b> за каждую покупку от 300 ₽!</i>")
+  lines.append(f"🪙 <b>Ваш баланс звёзд:</b> <b>{get_balance(user_id)}</b> ⭐")
+  lines.append(f"\n<i>Приглашайте друзей по ссылке и получайте по <b>{REFERRAL_BONUS} ⭐</b> за каждую покупку от 300 ₽!</i>")
 
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
@@ -1448,6 +1491,8 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
   network = data.get("crypto_net", "TON")
   prod_type = product_info.get("type")
   target_user = f"@{callback.from_user.username}" if callback.from_user.username else str(callback.from_user.id)
+  rub_price = product_info.get("amount", 0)
+  usdt_amount = product_info.get("usdt", 0)
 
   # Формируем счет CryptoBot (USDT)
   cryptobot_url = None
