@@ -217,3 +217,67 @@ class BotDB:
             return {r[0]: r[1] for r in rows} if rows else {}
         except Exception:
             return {}
+
+    def get_all_user_ids(self) -> list:
+        """Список всех ID пользователей для рассылки админа"""
+        try:
+            rows = self._run("SELECT DISTINCT user_id FROM users WHERE user_id IS NOT NULL", fetch="all")
+            return [int(r[0]) for r in rows if r and r[0]] if rows else []
+        except Exception as e:
+            logger.error(f"get_all_user_ids error: {e}")
+            return []
+
+    def get_top_referrers(self, limit: int = 10) -> list:
+        """Топ пользователей по количеству приглашенных рефералов [(user_id, count), ...]"""
+        try:
+            q = """
+                SELECT referrer_id, COUNT(*) as ref_count 
+                FROM users 
+                WHERE referrer_id IS NOT NULL AND referrer_id != 0 
+                GROUP BY referrer_id 
+                ORDER BY ref_count DESC 
+                LIMIT %s
+            """ if self.is_postgres else """
+                SELECT referrer_id, COUNT(*) as ref_count 
+                FROM users 
+                WHERE referrer_id IS NOT NULL AND referrer_id != 0 
+                GROUP BY referrer_id 
+                ORDER BY ref_count DESC 
+                LIMIT ?
+            """
+            rows = self._run(q, (limit,), fetch="all")
+            return [(int(r[0]), int(r[1])) for r in rows if r and r[0]] if rows else []
+        except Exception as e:
+            logger.error(f"get_top_referrers error: {e}")
+            return []
+
+    def get_user_referral_rank(self, user_id: int) -> int:
+        """Позиция пользователя в таблице лидеров по рефералам"""
+        try:
+            user_count = self.count_referrals(user_id)
+            if user_count == 0:
+                return 0
+            q = """
+                SELECT COUNT(DISTINCT referrer_id) + 1 
+                FROM (
+                    SELECT referrer_id, COUNT(*) as cnt 
+                    FROM users 
+                    WHERE referrer_id IS NOT NULL 
+                    GROUP BY referrer_id
+                ) t 
+                WHERE t.cnt > %s
+            """ if self.is_postgres else """
+                SELECT COUNT(DISTINCT referrer_id) + 1 
+                FROM (
+                    SELECT referrer_id, COUNT(*) as cnt 
+                    FROM users 
+                    WHERE referrer_id IS NOT NULL 
+                    GROUP BY referrer_id
+                ) 
+                WHERE cnt > ?
+            """
+            row = self._run(q, (user_count,), fetch="one")
+            return row[0] if row else 1
+        except Exception as e:
+            logger.error(f"get_user_referral_rank error: {e}")
+            return 1
