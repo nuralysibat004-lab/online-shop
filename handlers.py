@@ -839,20 +839,17 @@ def get_main_reply_keyboard():
   return ReplyKeyboardMarkup(
       keyboard=[
           [
-              KeyboardButton(text="💚 Криптовалюта"),
-              KeyboardButton(text="💛 ⭐ Купить звёзды"),
+              KeyboardButton(text="🪙 Криптовалюта"),
+              KeyboardButton(text="⭐ Купить звёзды"),
           ],
           [
-              KeyboardButton(text="🩷 История заказов"),
-              KeyboardButton(text="🩷 Профиль"),
+              KeyboardButton(text="📦 История заказов"),
+              KeyboardButton(text="👤 Профиль"),
           ],
+          [KeyboardButton(text="💬 Отзывы"), KeyboardButton(text="👥 Рефералы")],
           [
-              KeyboardButton(text="🩷 Отзывы"),
-              KeyboardButton(text="🩷 Рефералы"),
-          ],
-          [
-              KeyboardButton(text="🔴 Поддержка"),
-              KeyboardButton(text="🔴 Прочее"),
+              KeyboardButton(text="🛟 Поддержка"),
+              KeyboardButton(text="⚙️ Прочее"),
           ],
       ],
       resize_keyboard=True,
@@ -1009,21 +1006,21 @@ async def text_reviews(message: Message, state: FSMContext):
   await send_section(message, "reviews", text, kb)
 
 
-@rt.message(F.text.in_({"💚 Криптовалюта", "🪙 Криптовалюта", "Криптовалюта", "криптовалюта"}))
+@rt.message(F.text.in_({"🪙 Криптовалюта", "Криптовалюта", "криптовалюта"}))
 async def text_crypto_main(message: Message, state: FSMContext):
   await state.clear()
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="🩷 USDT (Tether)", callback_data="crypto_coin_USDT")],
-          [InlineKeyboardButton(text="💛 USDC (USD Coin)", callback_data="crypto_coin_USDC")],
-          [InlineKeyboardButton(text="💚 GRAM (TON Coin)", callback_data="crypto_coin_TON")],
+          [InlineKeyboardButton(text="💲 USDT", callback_data="crypto_coin_USDT")],
+          [InlineKeyboardButton(text="💶 USDC", callback_data="crypto_coin_USDC")],
+          [InlineKeyboardButton(text="💎 GRAM (TON)", callback_data="crypto_coin_TON")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
   await send_section(
       message,
       "crypto",
-      "<b>🪙 Покупка криптовалюты GumStars</b>\n\nВыберите нужную монету ниже:",
+      "<b>🪙 Покупка криптовалюты</b>\n\nВыберите нужную монету:",
       keyboard,
   )
 
@@ -1387,13 +1384,13 @@ async def crypto_back(callback: CallbackQuery, state: FSMContext):
   await state.clear()
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="🩷 USDT (Tether)", callback_data="crypto_coin_USDT")],
-          [InlineKeyboardButton(text="💛 USDC (USD Coin)", callback_data="crypto_coin_USDC")],
-          [InlineKeyboardButton(text="💚 GRAM (TON Coin)", callback_data="crypto_coin_TON")],
+          [InlineKeyboardButton(text="💲 USDT", callback_data="crypto_coin_USDT")],
+          [InlineKeyboardButton(text="💶 USDC", callback_data="crypto_coin_USDC")],
+          [InlineKeyboardButton(text="💎 GRAM (TON)", callback_data="crypto_coin_TON")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
-  await safe_edit(callback, "<b>🪙 Покупка криптовалюты GumStars</b>\n\nВыберите нужную монету ниже:", keyboard)
+  await safe_edit(callback, "<b>🪙 Покупка криптовалюты</b>\n\nВыберите нужную монету:", keyboard)
   await callback.answer()
 
 
