@@ -62,6 +62,7 @@ admin_bot = (
 
 rt = Router()
 bot_db = BotDB(DATABASE)
+CRYSTAL_PENDING_ORDERS = {}
 
 async def create_crystalpay_invoice(amount: float, description: str, extra: str = "") -> dict:
     """Создание ссылки на оплату через CrystalPAY (СБП и банковские карты РФ)"""
@@ -122,6 +123,7 @@ async def check_crystalpay_invoice(invoice_id: str) -> dict:
                         "state": state,
                         "amount": data.get("amount"),
                         "currency": data.get("currency", "RUB"),
+                        "extra": data.get("extra", ""),
                     }
                 return {"ok": False, "is_paid": False, "error": str(data.get("errors"))}
     except Exception as e:
@@ -446,20 +448,32 @@ async def safe_edit(
         except Exception:
           pass
 
-  # Надежный fallback: удаляем старое сообщение и шлем новое в чат
+  # Надежный fallback: сначала отправляем новое сообщение, и только при успехе удаляем старое!
+  new_msg = None
   try:
-    await msg.delete()
-  except Exception:
-    pass
-  try:
-    await msg.bot.send_message(
+    new_msg = await msg.bot.send_message(
         chat_id=msg.chat.id,
         text=text,
         reply_markup=reply_markup,
         parse_mode="HTML",
     )
   except Exception as e:
-    logger.error("safe_edit send_message error: %s", e)
+    logger.warning("safe_edit send_message HTML error: %s", e)
+    try:
+      # Попытка без HTML parse_mode, если в тексте были неэкранированные символы
+      new_msg = await msg.bot.send_message(
+          chat_id=msg.chat.id,
+          text=re.sub(r"<[^>]+>", "", text),
+          reply_markup=reply_markup,
+      )
+    except Exception as e2:
+      logger.error("safe_edit send_message plain text error: %s", e2)
+
+  if new_msg:
+    try:
+      await msg.delete()
+    except Exception:
+      pass
 
 
 BANNERS_FILE = "banners.json"
@@ -1520,12 +1534,18 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
 
   # Кнопка СБП (CrystalPAY)
   if crystal_res.get("ok") and crystal_res.get("url"):
-    crystal_id = crystal_res.get("invoice_id")
+    crystal_id = str(crystal_res.get("invoice_id"))
+    CRYSTAL_PENDING_ORDERS[crystal_id] = {
+        "prod_key": prod_key,
+        "target_user": target_user,
+        "network": network,
+        "rub_price": rub_price,
+    }
     buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=crystal_res["url"])])
-    buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"checkcrystal_{crystal_id}_{prod_key}_{target_user}")])
+    buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_cryst_{crystal_id}")])
 
   # Если есть нативные Telegram Stars
-  if prod_type == "crypto_native_stars" and product_info.get("stars"):
+  if product_info.get("stars"):
     buttons.append([InlineKeyboardButton(text=f"⭐ Оплатить звёздами ({product_info['stars']} Stars)", callback_data=f"buystars_crypto_{prod_key}")])
 
   # Кнопка CryptoBot
@@ -2079,9 +2099,14 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
 
   # Если касса CrystalPAY активна — добавляем кнопку СБП первой
   if crystal_res.get("ok") and crystal_res.get("url"):
-    crystal_id = crystal_res.get("invoice_id")
+    crystal_id = str(crystal_res.get("invoice_id"))
+    CRYSTAL_PENDING_ORDERS[crystal_id] = {
+        "prod_key": product_key,
+        "target_user": target_user,
+        "rub_price": rub_price,
+    }
     buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=crystal_res["url"])])
-    buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"checkcrystal_{crystal_id}_{product_key}_{target_user}")])
+    buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_cryst_{crystal_id}")])
 
   # Кнопки CryptoBot
   if cryptobot_url:
@@ -2106,22 +2131,33 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   await state.clear()
 
 
+@rt.callback_query(F.data.startswith("chk_cryst_"))
 @rt.callback_query(F.data.startswith("checkcrystal_"))
 async def check_crystalpay_payment_callback(callback: CallbackQuery):
   """Проверка статуса оплаты через кассу CrystalPAY (СБП)"""
-  parts = callback.data.split("_")
-  if len(parts) < 3:
-    await callback.answer("❌ Ошибка параметров проверки счета.", show_alert=True)
-    return
+  raw_data = callback.data
+  if raw_data.startswith("chk_cryst_"):
+    invoice_id = raw_data.replace("chk_cryst_", "")
+    pending = CRYSTAL_PENDING_ORDERS.get(str(invoice_id), {})
+    prod_key = pending.get("prod_key", "")
+    target_user = pending.get("target_user", f"@{callback.from_user.username}" if callback.from_user.username else str(callback.from_user.id))
+  else:
+    parts = raw_data.split("_")
+    invoice_id = parts[1]
+    prod_key = parts[2] if len(parts) > 2 else ""
+    target_user = parts[3] if len(parts) > 3 else f"@{callback.from_user.username}"
 
-  invoice_id = parts[1]
-  prod_key = parts[2]
-  target_user = parts[3] if len(parts) > 3 else f"@{callback.from_user.username}"
+  status_data = await check_crystalpay_invoice(invoice_id)
+
+  # Если prod_key не был найден в памяти, достаем его из extra, сохраненного в счете
+  if (not prod_key or prod_key not in PRICES) and status_data.get("extra"):
+    extra_parts = status_data["extra"].split(":")
+    prod_key = extra_parts[0]
+    if len(extra_parts) > 1 and not target_user:
+      target_user = extra_parts[1]
 
   product_info = PRICES.get(prod_key, {"title": "Товар", "amount": 0, "usdt": 0})
   rub_price = product_info["amount"]
-
-  status_data = await check_crystalpay_invoice(invoice_id)
 
   if status_data.get("is_paid"):
     buyer = callback.from_user
