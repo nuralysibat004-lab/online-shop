@@ -1,3 +1,4 @@
+import asyncio
 import aiohttp
 import csv
 import hashlib
@@ -43,6 +44,11 @@ REFERRAL_MIN_STARS = 350
 ADMIN_IDS = [int(x.strip()) for x in ALLOWED_ADMIN_IDS.split(",") if x.strip().isdigit()]
 ADMIN_ID = 7461353872
 
+# Настройки CrystalPAY (СБП и банковские карты РФ)
+CRYSTAL_AUTH_LOGIN = os.getenv("CRYSTAL_AUTH_LOGIN", "gumstarsshop")
+CRYSTAL_SECRET_KEY = os.getenv("CRYSTAL_SECRET_KEY", "")
+CRYSTAL_CASH_NAME = os.getenv("CRYSTAL_CASH_NAME", "GumStars")
+
 cryptopay = AioCryptoPay(token=os.getenv("CRYPTO_BOT_TOKEN"), network=Networks.MAIN_NET)
 FRAGMENT_API_URL = "https://v1.fragmentapi.com/api/v1/partner"
 FRAGMENT_API_KEY = os.getenv("FRAGMENT_API_KEY", "")
@@ -56,6 +62,94 @@ admin_bot = (
 
 rt = Router()
 bot_db = BotDB(DATABASE)
+
+async def create_crystalpay_invoice(amount: float, description: str, extra: str = "") -> dict:
+    """Создание ссылки на оплату через CrystalPAY (СБП и банковские карты РФ)"""
+    if not CRYSTAL_SECRET_KEY:
+        logger.warning("CRYSTAL_SECRET_KEY не настроен в переменных окружения Render!")
+        return {"ok": False, "error": "Ключ кассы не настроен"}
+
+    url = "https://api.crystalpay.io/v2/invoice/create/"
+    payload = {
+        "auth_login": CRYSTAL_AUTH_LOGIN,
+        "auth_secret": CRYSTAL_SECRET_KEY,
+        "amount": amount,
+        "type": "purchase",
+        "description": description[:120],
+        "redirect_url": "https://t.me/GumStars_bot",
+        "extra": extra[:120],
+        "lifetime": 60,
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, timeout=20) as resp:
+                data = await resp.json()
+                if not data.get("error") and data.get("url"):
+                    return {
+                        "ok": True,
+                        "invoice_id": data.get("id"),
+                        "url": data.get("url"),
+                    }
+                err_msg = ", ".join(data.get("errors", [])) or "Ошибка создания счета"
+                logger.error(f"CrystalPAY API error: {data}")
+                return {"ok": False, "error": err_msg}
+    except Exception as e:
+        logger.error(f"CrystalPAY connection error: {e}")
+        return {"ok": False, "error": str(e)}
+
+async def check_crystalpay_invoice(invoice_id: str) -> dict:
+    """Проверка статуса оплаты инвойса в CrystalPAY"""
+    if not CRYSTAL_SECRET_KEY:
+        return {"ok": False, "is_paid": False, "error": "Ключ кассы не настроен"}
+
+    url = "https://api.crystalpay.io/v2/invoice/info/"
+    payload = {
+        "auth_login": CRYSTAL_AUTH_LOGIN,
+        "auth_secret": CRYSTAL_SECRET_KEY,
+        "id": invoice_id,
+    }
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, json=payload, timeout=20) as resp:
+                data = await resp.json()
+                if not data.get("error"):
+                    state = str(data.get("state", "")).lower()
+                    # В CrystalPAY v2 оплаченный статус = "payed"
+                    is_paid = state in ("payed", "paid")
+                    return {
+                        "ok": True,
+                        "is_paid": is_paid,
+                        "state": state,
+                        "amount": data.get("amount"),
+                        "currency": data.get("currency", "RUB"),
+                    }
+                return {"ok": False, "is_paid": False, "error": str(data.get("errors"))}
+    except Exception as e:
+        return {"ok": False, "is_paid": False, "error": str(e)}
+
+async def notify_admin_order(bot_obj: Bot, order_type: str, product_title: str, buyer, amount_str: str, method: str, status: str, extra: str = ""):
+    """Мгновенное уведомление администратору о заказе на ID 7461353872"""
+    buyer_label = f"@{buyer.username}" if getattr(buyer, "username", None) else html.escape(getattr(buyer, "first_name", "Клиент") or "Клиент")
+    buyer_id = getattr(buyer, "id", "Неизвестен")
+    
+    text = (
+        f"🔔 <b>[НОВЫЙ ЗАКАЗ] {order_type}</b>\n\n"
+        f"📦 <b>Товар:</b> {product_title}\n"
+        f"👤 <b>Покупатель:</b> {buyer_label} (ID: <code>{buyer_id}</code>)\n"
+        f"💰 <b>Сумма:</b> <b>{amount_str}</b>\n"
+        f"💳 <b>Оплата:</b> {method}\n"
+        f"📊 <b>Статус:</b> {status}\n"
+    )
+    if extra:
+        text += f"\nℹ️ <i>{extra}</i>"
+
+    for aid in list(set([ADMIN_ID] + ADMIN_IDS)):
+        try:
+            await bot_obj.send_message(chat_id=aid, text=text, parse_mode="HTML")
+        except Exception as e:
+            logger.error(f"Не удалось отправить уведомление админу {aid}: {e}")
+
+
 
 
 class WithdrawState(StatesGroup):
@@ -563,6 +657,62 @@ async def cmd_banners_status(message: Message):
   await message.answer("\n".join(lines), parse_mode="HTML")
 
 
+@rt.message(Command("broadcast"))
+@rt.message(Command("send_all"))
+async def cmd_broadcast(message: Message, command: CommandObject = None):
+  """Рассылка сообщения всем пользователям бота (доступно только админу)"""
+  user_id = message.from_user.id
+  is_admin = (user_id in ADMIN_IDS) or (user_id == ADMIN_ID)
+  if not is_admin:
+    return
+
+  text_to_send = (command.args or "").strip() if command else ""
+  reply_msg = message.reply_to_message
+
+  if not text_to_send and not reply_msg:
+    await message.answer(
+        "📢 <b>Рассылка сообщений всем пользователям бота:</b>\n\n"
+        "<b>Как использовать:</b>\n"
+        "• <code>/broadcast Текст вашей новости или акции</code>\n"
+        "• Либо отправьте фото/картинку с текстом и ответьте на неё командой <code>/broadcast</code>",
+        parse_mode="HTML",
+    )
+    return
+
+  all_users = bot_db.get_all_user_ids()
+  if not all_users:
+    await message.answer("❌ В базе данных пока нет зарегистрированных пользователей.")
+    return
+
+  status_msg = await message.answer(
+      f"⏳ <b>Начинаю рассылку для {len(all_users)} пользователей...</b>",
+      parse_mode="HTML",
+  )
+
+  success_count = 0
+  blocked_count = 0
+
+  for uid in all_users:
+    try:
+      if reply_msg:
+        await reply_msg.copy_to(chat_id=uid)
+      else:
+        await message.bot.send_message(chat_id=uid, text=text_to_send, parse_mode="HTML")
+      success_count += 1
+      await asyncio.sleep(0.04)  # Защита от лимитов Telegram (25 сообщ/сек)
+    except Exception:
+      blocked_count += 1
+
+  await status_msg.edit_text(
+      "✅ <b>Рассылка успешно завершена!</b>\n\n"
+      f"• Всего в базе: <b>{len(all_users)}</b>\n"
+      f"• Успешно доставлено: <b>{success_count}</b>\n"
+      f"• Ошибок (бот заблокирован/удален): <b>{blocked_count}</b>",
+      parse_mode="HTML",
+  )
+
+
+
 async def send_section(
     event: Message | CallbackQuery,
     banner_name: str,
@@ -891,6 +1041,7 @@ async def text_ref(message: Message, state: FSMContext):
   )
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
+          [InlineKeyboardButton(text="🏆 Лидерборд (Топ рефералов)", callback_data="ref_leaderboard")],
           [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
@@ -1023,12 +1174,51 @@ async def ref_callback(callback: CallbackQuery, state: FSMContext):
   )
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
+          [InlineKeyboardButton(text="🏆 Лидерборд (Топ рефералов)", callback_data="ref_leaderboard")],
           [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
   await safe_edit(callback, text, keyboard)
   await callback.answer()
+
+
+@rt.callback_query(F.data == "ref_leaderboard")
+async def ref_leaderboard_callback(callback: CallbackQuery):
+  user_id = callback.from_user.id
+  top_users = bot_db.get_top_referrers(10)
+  my_rank = bot_db.get_user_referral_rank(user_id)
+  my_count = bot_db.count_referrals(user_id)
+
+  medals = ["🥇", "🥈", "🥉", "4️⃣", "5️⃣", "6️⃣", "7️⃣", "8️⃣", "9️⃣", "🔟"]
+  lines = [
+      "<b>🏆 ЛИДЕРБОРД РЕФЕРАЛОВ GUMSTARS</b>\n",
+      "Топ участников, пригласивших больше всего друзей:\n",
+  ]
+
+  if not top_users:
+    lines.append("<i>Пока никто не пригласил друзей. Будьте первым!</i>\n")
+  else:
+    for idx, (ref_id, cnt) in enumerate(top_users):
+      medal = medals[idx] if idx < len(medals) else f"{idx+1}."
+      s_id = str(ref_id)
+      masked_id = s_id[:4] + "***" if len(s_id) >= 6 else s_id
+      is_me = " (Вы)" if ref_id == user_id else ""
+      bonus = cnt * REFERRAL_BONUS
+      lines.append(f"{medal} <code>ID {masked_id}</code>{is_me} — <b>{cnt}</b> друзей (+{bonus} ⭐)")
+
+  lines.append(f"\n👤 <b>Ваш результат:</b> позиция <b>#{my_rank}</b> (приглашено: <b>{my_count}</b>)")
+  lines.append(f"\n<i>Приглашайте друзей и получайте по <b>{REFERRAL_BONUS} ⭐</b> за каждую покупку от 300 ₽!</i>")
+
+  kb = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="« Назад в Рефералы", callback_data="ref")],
+          [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+      ]
+  )
+  await safe_edit(callback, "\n".join(lines), kb)
+  await callback.answer()
+
 
 
 @rt.callback_query(F.data == "profile")
@@ -1791,34 +1981,185 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   rub_price = product_info["amount"]
   usdt_amount = product_info["usdt"]
 
+  # 1. Формируем счет CryptoBot (USDT)
+  cryptobot_url = None
+  cryptobot_id = None
   try:
     invoice = await cryptopay.create_invoice(
         asset="USDT",
         amount=usdt_amount,
-        description=f"Покупка {product_info['title']} для {target_user} (Эквивалент: {rub_price} P)",
+        description=f"Покупка {product_info['title']} для {target_user} ({rub_price} ₽)",
         payload=f"{product_key}:{target_user}",
     )
-
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="💳 Оплатить счет", url=invoice.bot_invoice_url)],
-            [InlineKeyboardButton(text="🔄 Проверить оплату", callback_data=f"checkcrypto_{invoice.invoice_id}")],
-            [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
-        ]
-    )
-
-    await safe_edit(
-        callback,
-        "<b>✅ Заказ успешно сформирован!</b>\n\n"
-        f"📦 Товар: <b>{product_info['title']}</b>\n"
-        f"👤 Получатель: <code>{target_user}</code>\n"
-        f"💰 Цена: <b>{rub_price} ₽</b> (оплата: <b>{usdt_amount} USDT</b>)\n\n"
-        "Нажмите кнопку ниже для безопасной оплаты через CryptoBot:",
-        kb,
-    )
+    cryptobot_url = invoice.bot_invoice_url
+    cryptobot_id = invoice.invoice_id
   except Exception as e:
     logger.error(f"Ошибка создания счета CryptoBot: {e}")
-    await callback.answer("⚠️ Произошла ошибка при создании счета на оплату. Попробуйте позже.", show_alert=True)
 
+  # 2. Формируем счет CrystalPAY (СБП и банковские карты РФ)
+  crystal_res = await create_crystalpay_invoice(
+      amount=rub_price,
+      description=f"{product_info['title']} для {target_user}",
+      extra=f"{product_key}:{target_user}",
+  )
+
+  # 3. Мгновенное уведомление администратору о начале оформления заказа
+  await notify_admin_order(
+      bot_obj=callback.bot,
+      order_type="ОФОРМЛЕН ЗАКАЗ",
+      product_title=product_info["title"],
+      buyer=callback.from_user,
+      amount_str=f"{rub_price} ₽ ({usdt_amount} USDT)",
+      method="СБП (CrystalPAY) / CryptoBot",
+      status="Сформирован счет на оплату",
+      extra=f"Получатель: {target_user}",
+  )
+
+  buttons = []
+
+  # Если касса CrystalPAY активна — добавляем кнопку СБП первой
+  if crystal_res.get("ok") and crystal_res.get("url"):
+    crystal_id = crystal_res.get("invoice_id")
+    buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=crystal_res["url"])])
+    buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"checkcrystal_{crystal_id}_{product_key}_{target_user}")])
+
+  # Кнопки CryptoBot
+  if cryptobot_url:
+    buttons.append([InlineKeyboardButton(text=f"💎 Оплатить криптой ({usdt_amount} USDT)", url=cryptobot_url)])
+    buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату CryptoBot", callback_data=f"checkcrypto_{cryptobot_id}")])
+
+  buttons.append([InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")])
+
+  kb = InlineKeyboardMarkup(inline_keyboard=buttons)
+
+  order_msg = (
+      "<b>✅ Заказ успешно сформирован!</b>\n\n"
+      f"📦 Товар: <b>{product_info['title']}</b>\n"
+      f"👤 Получатель: <code>{target_user}</code>\n"
+      f"💰 Стоимость: <b>{rub_price} ₽</b> (или <b>{usdt_amount} USDT</b>)\n\n"
+      "<b>Выберите удобный способ оплаты ниже:</b>\n"
+      "• <b>СБП (Система быстрых платежей)</b> — мгновенно через любой банк РФ\n"
+      "• <b>CryptoBot</b> — оплата в USDT или TON прямо в Telegram"
+  )
+
+  await safe_edit(callback, order_msg, kb)
   await state.clear()
+
+
+@rt.callback_query(F.data.startswith("checkcrystal_"))
+async def check_crystalpay_payment_callback(callback: CallbackQuery):
+  """Проверка статуса оплаты через кассу CrystalPAY (СБП)"""
+  parts = callback.data.split("_")
+  if len(parts) < 3:
+    await callback.answer("❌ Ошибка параметров проверки счета.", show_alert=True)
+    return
+
+  invoice_id = parts[1]
+  prod_key = parts[2]
+  target_user = parts[3] if len(parts) > 3 else f"@{callback.from_user.username}"
+
+  product_info = PRICES.get(prod_key, {"title": "Товар", "amount": 0, "usdt": 0})
+  rub_price = product_info["amount"]
+
+  status_data = await check_crystalpay_invoice(invoice_id)
+
+  if status_data.get("is_paid"):
+    buyer = callback.from_user
+    buyer_label = f"@{buyer.username}" if buyer.username else html.escape(buyer.first_name or f"ID {buyer.id}")
+
+    # 1. Автоматическая доставка Stars через Fragment API
+    if prod_key.startswith("prod_stars_"):
+      star_qty = product_info.get("quantity", 50)
+      frag_res = await deliver_stars_via_fragment(recipient=target_user, quantity=star_qty)
+
+      if frag_res.get("ok"):
+        logger.info(f"Fragment API: {star_qty} звёзд отправлено через СБП на {target_user}")
+        await safe_edit(
+            callback,
+            "<b>✅ Оплата по СБП успешно получена! Звёзды отправлены! ⭐</b>\n\n"
+            f"📦 Товар: <b>{product_info['title']}</b>\n"
+            f"🎯 Получатель: <code>{target_user}</code>\n\n"
+            "⚡ <i>Звёзды автоматически доставлены на ваш аккаунт через Fragment API!</i>",
+            InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+        )
+      else:
+        await safe_edit(
+            callback,
+            "<b>✅ Оплата по СБП получена!</b>\n\n"
+            f"📦 Товар: <b>{product_info['title']}</b>\n"
+            f"🎯 Получатель: <code>{target_user}</code>\n\n"
+            "⏳ <i>Заказ принят. Звёзды поступят на ваш аккаунт в течение нескольких минут!</i>",
+            InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+        )
+    # 2. Telegram Premium
+    elif prod_key.startswith("prod_prem_"):
+      await safe_edit(
+          callback,
+          "<b>✅ Оплата по СБП получена! Заказ передан в обработку 💎</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"🎯 Получатель: <code>{target_user}</code>\n\n"
+          "⏳ <i>Администратор активирует подписку Telegram Premium в течение 5–15 минут!</i>",
+          InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+      )
+    # 3. Криптовалюта
+    else:
+      await safe_edit(
+          callback,
+          "<b>✅ Оплата по СБП получена!</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"🎯 Получатель: <code>{target_user}</code>\n\n"
+          "💎 <i>Криптовалюта успешно отправлена/чек сформирован.</i>",
+          InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+      )
+
+    # Уведомление администратора об успешной оплате
+    await notify_admin_order(
+        bot_obj=callback.bot,
+        order_type="ОПЛАЧЕНО ПО СБП (CrystalPAY) 🎉",
+        product_title=product_info["title"],
+        buyer=buyer,
+        amount_str=f"{rub_price} ₽",
+        method="СБП (CrystalPAY)",
+        status="✅ Оплата получена, заказ выполнен!",
+        extra=f"Получатель: {target_user} | Инвойс: #{invoice_id}",
+    )
+
+    # Реферальный бонус (при покупке от 300 руб)
+    try:
+      if rub_price >= 300:
+        user_id = buyer.id
+        user_record = bot_db.get_user(user_id)
+        if user_record and len(user_record) > 1 and user_record[1]:
+          referrer_id = user_record[1]
+          ref_current_balance = (
+              bot_db.get_user(referrer_id)[0]
+              if bot_db.get_user(referrer_id)
+              else 0
+          )
+          new_ref_balance = ref_current_balance + REFERRAL_BONUS
+          bot_db.update_balance(referrer_id, new_ref_balance)
+          await callback.bot.send_message(
+              referrer_id,
+              f"🎉 <b>Реферальный бонус!</b>\n\n"
+              f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
+              f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
+              parse_mode="HTML",
+          )
+    except Exception as e:
+      logger.error(f"Ошибка начисления реферального бонуса: {e}")
+
+    # Публикация в канал отзывов
+    await publish_to_reviews_channel(
+        order_id=invoice_id,
+        product_title=product_info["title"],
+        buyer=buyer,
+        target_user=target_user,
+        amount_rub=rub_price,
+    )
+  else:
+    await callback.answer(
+        "⏳ Счет еще не оплачен. Оплатите через СБП в приложении вашего банка и нажмите кнопку снова.",
+        show_alert=True,
+    )
+
       
