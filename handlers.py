@@ -943,7 +943,7 @@ def back_keyboard():
 
 
 OFERTA_URL = "https://telegra.ph/Publichnaya-oferta-i-Politika-vozvrata-GumStars-11-05"
-DOCS_URL = "https://telegra.ph/Publichnaya-oferta-i-Politika-vozvrata-GumStars-11-05"
+DOCS_URL = "https://telegra.ph/Dokumenty-i-Politika-GumStars-11-02"
 
 
 
@@ -1273,7 +1273,8 @@ async def cmd_terms(message: Message):
 async def cmd_docs_teleg(message: Message):
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="📄 Открыть оферту и правила (Telegra.ph)", url=DOCS_URL)],
+          [InlineKeyboardButton(text="📄 Открыть документы (Telegra.ph)", url=DOCS_URL)],
+          [InlineKeyboardButton(text="📑 Открыть оферту и возврат (Telegra.ph)", url=OFERTA_URL)],
           [InlineKeyboardButton(text="« Назад в Прочее", callback_data="open_other_menu")],
       ]
   )
