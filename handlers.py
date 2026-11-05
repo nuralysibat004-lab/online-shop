@@ -174,49 +174,49 @@ class BuyCryptoSteps(StatesGroup):
 # ПРАВИЛЬНЫЙ ПРАЙС-ЛИСТ (GRAM за USDT, USDT/USDC за Stars)
 PRICES = {
     "prod_stars_50": {
-        "amount": 72,
+        "amount": 78,
         "usdt": 0.89,
         "title": "50 Telegram Stars",
         "type": "stars",
         "quantity": 50,
     },
     "prod_stars_100": {
-        "amount": 144,
+        "amount": 156,
         "usdt": 1.78,
         "title": "100 Telegram Stars",
         "type": "stars",
         "quantity": 100,
     },
     "prod_stars_150": {
-        "amount": 216,
+        "amount": 234,
         "usdt": 2.68,
         "title": "150 Telegram Stars",
         "type": "stars",
         "quantity": 150,
     },
     "prod_stars_250": {
-        "amount": 360,
+        "amount": 390,
         "usdt": 4.47,
         "title": "250 Telegram Stars",
         "type": "stars",
         "quantity": 250,
     },
     "prod_stars_500": {
-        "amount": 720,
+        "amount": 780,
         "usdt": 8.94,
         "title": "500 Telegram Stars",
         "type": "stars",
         "quantity": 500,
     },
     "prod_stars_1000": {
-        "amount": 1440,
+        "amount": 1560,
         "usdt": 17.89,
         "title": "1000 Telegram Stars",
         "type": "stars",
         "quantity": 1000,
     },
     "prod_stars_2500": {
-        "amount": 3600,
+        "amount": 3900,
         "usdt": 44.72,
         "title": "2500 Telegram Stars",
         "type": "stars",
@@ -767,6 +767,85 @@ async def cmd_set_balance(message: Message, command: CommandObject = None):
       f"⭐ Новый баланс: <b>{amount}</b> звёзд.",
       parse_mode="HTML",
   )
+
+
+@rt.message(Command("refund"))
+@rt.message(Command("refund_stars"))
+async def cmd_refund_stars(message: Message, command: CommandObject):
+  """Возврат Telegram Stars через официальный API Telegram refundStarPayment"""
+  user_id = message.from_user.id
+  if user_id not in list(set([ADMIN_ID] + ADMIN_IDS)):
+    return
+
+  target_id = 6549054070
+  raw_args = (command.args or "").strip()
+  if raw_args:
+    try:
+      target_id = int(raw_args.split()[0])
+    except ValueError:
+      pass
+
+  status_msg = await message.answer(
+      f"🔍 <i>Поиск транзакций для возврата звёзд пользователю <code>{target_id}</code>...</i>",
+      parse_mode="HTML",
+  )
+
+  try:
+    star_txs = await message.bot.get_star_transactions()
+    transactions = getattr(star_txs, "transactions", []) or []
+
+    refunded = False
+    for tx in transactions:
+      source = getattr(tx, "source", None)
+      source_user = getattr(source, "user", None)
+      source_id = getattr(source_user, "id", None)
+
+      if source_id == target_id:
+        charge_id = tx.id
+        await message.bot.refund_star_payment(
+            user_id=target_id, telegram_payment_charge_id=charge_id
+        )
+        await status_msg.edit_text(
+            f"✅ <b>Звёзды успешно возвращены пользователю <code>{target_id}</code>!</b>\n\n"
+            f"⭐ Сумма: <b>{tx.amount} Stars</b>\n"
+            f"🆔 ID транзакции: <code>{charge_id}</code>",
+            parse_mode="HTML",
+        )
+        refunded = True
+        break
+
+    if not refunded:
+      for tx in transactions:
+        charge_id = tx.id
+        try:
+          await message.bot.refund_star_payment(
+              user_id=target_id, telegram_payment_charge_id=charge_id
+          )
+          await status_msg.edit_text(
+              f"✅ <b>Звёзды успешно возвращены пользователю <code>{target_id}</code>!</b>\n\n"
+              f"⭐ Сумма: <b>{tx.amount} Stars</b>\n"
+              f"🆔 ID транзакции: <code>{charge_id}</code>",
+              parse_mode="HTML",
+          )
+          refunded = True
+          break
+        except Exception:
+          continue
+
+    if not refunded:
+      await status_msg.edit_text(
+          f"⚠️ <b>Транзакция не найдена.</b>\n\n"
+          f"Проверено транзакций: {len(transactions)}.\n"
+          f"Если у вас есть ID транзакции (charge_id), можете вызвать:\n"
+          f"<code>/refund {target_id} &lt;charge_id&gt;</code>",
+          parse_mode="HTML",
+      )
+  except Exception as e:
+    logger.exception("Ошибка при выполнении refund:")
+    await status_msg.edit_text(
+        f"❌ <b>Ошибка возврата:</b> <code>{html.escape(str(e))}</code>",
+        parse_mode="HTML",
+    )
 
 
 
@@ -1527,32 +1606,13 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
     except Exception as e:
       logger.error(f"Ошибка создания счета CryptoBot (крипта): {e}")
 
-  # Формируем счет CrystalPAY (СБП) в рублях
-  crystal_res = await create_crystalpay_invoice(
-      amount=rub_price,
-      description=f"{product_info['title']} ({network}) для {target_user}",
-      extra=f"{prod_key}:{target_user}:{network}",
-  )
-
   buttons = []
 
-  # 1. Кнопка СБП (CrystalPAY)
-  if crystal_res.get("ok") and crystal_res.get("url"):
-    crystal_id = str(crystal_res.get("invoice_id"))
-    CRYSTAL_PENDING_ORDERS[crystal_id] = {
-        "prod_key": prod_key,
-        "target_user": target_user,
-        "network": network,
-        "rub_price": rub_price,
-    }
-    buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=crystal_res["url"])])
-    buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_cryst_{crystal_id}")])
-
-  # 2. Кнопка оплаты Telegram Stars
+  # 1. Кнопка оплаты Telegram Stars (для USDT/USDC)
   if product_info.get("stars"):
     buttons.append([InlineKeyboardButton(text=f"⭐ Оплатить звёздами ({product_info['stars']} Stars)", callback_data=f"buystars_crypto_{prod_key}")])
 
-  # 3. Кнопка CryptoBot (только для TON/GRAM)
+  # 2. Кнопка CryptoBot (для TON/GRAM)
   if not is_stable and cryptobot_url:
     buttons.append([InlineKeyboardButton(text=f"💎 Оплатить через CryptoBot ({usdt_amount} USDT)", url=cryptobot_url)])
     buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату CryptoBot", callback_data=f"checkcrypto_{cryptobot_id}")])
@@ -1562,11 +1622,9 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
   kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
   methods_text = (
-      "• <b>СБП (Система быстрых платежей)</b> — рублями через любой банк РФ\n"
-      "• <b>Telegram Stars</b> — моментально за звёзды Telegram"
+      "• <b>Telegram Stars</b> — моментальный обмен за звёзды Telegram"
       if is_stable else
-      "• <b>СБП (Система быстрых платежей)</b> — рублями через любой банк РФ\n"
-      "• <b>CryptoBot</b> — в USDT/TON прямо в Telegram"
+      "• <b>CryptoBot</b> — моментально в USDT/TON прямо в Telegram"
   )
 
   order_text = (
@@ -1574,8 +1632,8 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
       f"📦 Товар: <b>{product_info['title']}</b>\n"
       f"🌐 Сеть: <b>{network}</b>\n"
       f"👤 Получатель: <code>{target_user}</code>\n"
-      f"💰 Стоимость: <b>{rub_price} ₽</b>" + (f" (или <b>{product_info['stars']} ⭐</b>)" if product_info.get("stars") else "") + "\n\n"
-      "<b>Выберите удобный способ оплаты:</b>\n"
+      f"💰 Стоимость: " + (f"<b>{product_info['stars']} ⭐</b>" if product_info.get("stars") else f"<b>{usdt_amount} USDT</b>") + "\n\n"
+      "<b>Способ оплаты:</b>\n"
       f"{methods_text}"
   )
 
@@ -2040,27 +2098,27 @@ async def show_products(message: Message | CallbackQuery, state: FSMContext):
   if category == "stars":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ 50 звезд — 72 ₽", callback_data="prod_stars_50")],
-            [InlineKeyboardButton(text="⭐ 100 звезд — 144 ₽", callback_data="prod_stars_100")],
-            [InlineKeyboardButton(text="⭐ 150 звезд — 216 ₽", callback_data="prod_stars_150")],
-            [InlineKeyboardButton(text="⭐ 250 звезд — 360 ₽", callback_data="prod_stars_250")],
-            [InlineKeyboardButton(text="⭐ 500 звезд — 720 ₽", callback_data="prod_stars_500")],
-            [InlineKeyboardButton(text="⭐ 1000 звезд — 1440 ₽", callback_data="prod_stars_1000")],
-            [InlineKeyboardButton(text="⭐ 2500 звезд — 3600 ₽", callback_data="prod_stars_2500")],
+            [InlineKeyboardButton(text="⭐ 50 звезд — 78 ₽", callback_data="prod_stars_50")],
+            [InlineKeyboardButton(text="⭐ 100 звезд — 156 ₽", callback_data="prod_stars_100")],
+            [InlineKeyboardButton(text="⭐ 150 звезд — 234 ₽", callback_data="prod_stars_150")],
+            [InlineKeyboardButton(text="⭐ 250 звезд — 390 ₽", callback_data="prod_stars_250")],
+            [InlineKeyboardButton(text="⭐ 500 звезд — 780 ₽", callback_data="prod_stars_500")],
+            [InlineKeyboardButton(text="⭐ 1000 звезд — 1 560 ₽", callback_data="prod_stars_1000")],
+            [InlineKeyboardButton(text="⭐ 2500 звезд — 3 900 ₽", callback_data="prod_stars_2500")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
-    text = "<b>⭐ Выберите необходимый пакет звезд:</b>"
+    text = "<b>⭐ Выберите необходимый пакет звезд:</b>\n<i>(СБП от 78 ₽ / скидка при оплате криптой)</i>"
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 3 месяца — 1 150 ₽", callback_data="prod_prem_3")],
-            [InlineKeyboardButton(text="💎 6 месяцев — 1 850 ₽", callback_data="prod_prem_6")],
-            [InlineKeyboardButton(text="💎 12 месяцев — 3 300 ₽", callback_data="prod_prem_12")],
+            [InlineKeyboardButton(text="💎 3 месяца — 14.22 USDT", callback_data="prod_prem_3")],
+            [InlineKeyboardButton(text="💎 6 месяцев — 22.88 USDT", callback_data="prod_prem_6")],
+            [InlineKeyboardButton(text="💎 12 месяцев — 40.80 USDT", callback_data="prod_prem_12")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
-    text = "<b>💎 Выберите срок подписки TG Premium:</b>"
+    text = "<b>💎 Выберите срок подписки TG Premium:</b>\n<i>(Оплата в USDT через CryptoBot)</i>"
 
   await state.set_state(BuySteps.choosing_product)
   if isinstance(message, CallbackQuery):
@@ -2082,6 +2140,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   target_user = data.get("target_user", f"@{callback.from_user.username}")
   rub_price = product_info["amount"]
   usdt_amount = product_info["usdt"]
+  is_stars = product_info.get("type") == "stars"
 
   # 1. Формируем счет CryptoBot (USDT)
   cryptobot_url = None
@@ -2098,44 +2157,54 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   except Exception as e:
     logger.error(f"Ошибка создания счета CryptoBot: {e}")
 
-  # 2. Формируем счет CrystalPAY (СБП и банковские карты РФ)
-  crystal_res = await create_crystalpay_invoice(
-      amount=rub_price,
-      description=f"{product_info['title']} для {target_user}",
-      extra=f"{product_key}:{target_user}",
-  )
-
   buttons = []
 
-  # Если касса CrystalPAY активна — добавляем кнопку СБП первой
-  if crystal_res.get("ok") and crystal_res.get("url"):
-    crystal_id = str(crystal_res.get("invoice_id"))
-    CRYSTAL_PENDING_ORDERS[crystal_id] = {
-        "prod_key": product_key,
-        "target_user": target_user,
-        "rub_price": rub_price,
-    }
-    buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=crystal_res["url"])])
-    buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_cryst_{crystal_id}")])
+  # 2. СБП подключаем ТОЛЬКО для Telegram Stars! В Premium и Крипте СБП отключен.
+  if is_stars:
+    crystal_res = await create_crystalpay_invoice(
+        amount=rub_price,
+        description=f"{product_info['title']} для {target_user}",
+        extra=f"{product_key}:{target_user}",
+    )
+    if crystal_res.get("ok") and crystal_res.get("url"):
+      crystal_id = str(crystal_res.get("invoice_id"))
+      CRYSTAL_PENDING_ORDERS[crystal_id] = {
+          "prod_key": product_key,
+          "target_user": target_user,
+          "rub_price": rub_price,
+      }
+      buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=crystal_res["url"])])
+      buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_cryst_{crystal_id}")])
 
   # Кнопки CryptoBot
   if cryptobot_url:
-    buttons.append([InlineKeyboardButton(text=f"💎 Оплатить криптой ({usdt_amount} USDT)", url=cryptobot_url)])
+    cb_text = f"💎 Оплатить криптой ({usdt_amount} USDT)" if is_stars else f"💎 Оплатить через CryptoBot ({usdt_amount} USDT)"
+    buttons.append([InlineKeyboardButton(text=cb_text, url=cryptobot_url)])
     buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату CryptoBot", callback_data=f"checkcrypto_{cryptobot_id}")])
 
   buttons.append([InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")])
 
   kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-  order_msg = (
-      "<b>✅ Заказ успешно сформирован!</b>\n\n"
-      f"📦 Товар: <b>{product_info['title']}</b>\n"
-      f"👤 Получатель: <code>{target_user}</code>\n"
-      f"💰 Стоимость: <b>{rub_price} ₽</b> (или <b>{usdt_amount} USDT</b>)\n\n"
-      "<b>Выберите удобный способ оплаты ниже:</b>\n"
-      "• <b>СБП (Система быстрых платежей)</b> — мгновенно через любой банк РФ\n"
-      "• <b>CryptoBot</b> — оплата в USDT или TON прямо в Telegram"
-  )
+  if is_stars:
+    order_msg = (
+        "<b>✅ Заказ успешно сформирован!</b>\n\n"
+        f"📦 Товар: <b>{product_info['title']}</b>\n"
+        f"👤 Получатель: <code>{target_user}</code>\n"
+        f"💰 Стоимость: <b>{rub_price} ₽</b> (по СБП) или <b>{usdt_amount} USDT</b> (криптой)\n\n"
+        "<b>Выберите способ оплаты ниже:</b>\n"
+        "• <b>🇷🇺 СБП (Система быстрых платежей)</b> — моментально через любой банк РФ\n"
+        "• <b>💎 CryptoBot</b> — оплата со скидкой в USDT прямо в Telegram"
+    )
+  else:
+    order_msg = (
+        "<b>✅ Заказ Telegram Premium сформирован!</b>\n\n"
+        f"📦 Подписка: <b>{product_info['title']}</b>\n"
+        f"👤 Получатель: <code>{target_user}</code>\n"
+        f"💰 Стоимость: <b>{usdt_amount} USDT</b>\n\n"
+        "<b>Способ оплаты:</b>\n"
+        "• <b>💎 CryptoBot</b> — моментальная оплата в USDT или TON прямо в Telegram"
+    )
 
   await safe_edit(callback, order_msg, kb)
   await state.clear()
