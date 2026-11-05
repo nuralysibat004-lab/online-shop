@@ -942,8 +942,8 @@ def back_keyboard():
   )
 
 
-OFERTA_URL = "https://telegra.ph/Publichnaya-oferta-GumStars-11-02"
-DOCS_URL = "https://telegra.ph/Dokumenty-i-Politika-GumStars-11-02"
+OFERTA_URL = "https://telegra.ph/Publichnaya-oferta-i-Politika-vozvrata-GumStars-11-05"
+DOCS_URL = "https://telegra.ph/Publichnaya-oferta-i-Politika-vozvrata-GumStars-11-05"
 
 
 
@@ -1273,11 +1273,18 @@ async def cmd_terms(message: Message):
 async def cmd_docs_teleg(message: Message):
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="📄 Открыть документы (Telegra.ph)", url=DOCS_URL)],
+          [InlineKeyboardButton(text="📄 Открыть оферту и правила (Telegra.ph)", url=DOCS_URL)],
           [InlineKeyboardButton(text="« Назад в Прочее", callback_data="open_other_menu")],
       ]
   )
-  await message.answer("📄 <b>Документы и политика конфиденциальности:</b>", reply_markup=kb, parse_mode="HTML")
+  text = (
+      "📑 <b>Политика возврата и гарантии сервиса:</b>\n\n"
+      "• <b>3.1. Цифровые товары:</b>\n"
+      "Цифровые товары надлежащего качества после успешной доставки возврату не подлежат.\n\n"
+      "• <b>3.2. 100% Гарантия при сбое или недоставке:</b>\n"
+      "В случае технического сбоя сети или задержки доставки покупателю гарантируется <b>повторная отправка товара либо полный возврат уплаченных средств</b> через поддержку (@bull9bull / gumsupport@gmail.com)."
+  )
+  await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
 
 @rt.callback_query(F.data.in_({"doc_terms", "doc_privacy", "doc_refund"}))
