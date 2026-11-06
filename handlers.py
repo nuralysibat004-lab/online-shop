@@ -171,7 +171,7 @@ class BuyCryptoSteps(StatesGroup):
   entering_custom_amount = State()
 
 
-# ПРАВИЛЬНЫЙ ПРАЙС-ЛИСТ (GRAM за USDT, USDT/USDC за Stars)
+# ПРАВИЛЬНЫЙ ПРАЙС-ЛИСТ (GRAM за USDT, USDT за Stars)
 PRICES = {
     "prod_stars_50": {
         "amount": 78,
@@ -326,51 +326,6 @@ PRICES = {
         "title": "10 USDT",
         "type": "crypto_native_stars",
         "coin": "USDT",
-        "qty": 10,
-    },
-    "prod_crypto_usdc_1": {
-        "amount": 95,
-        "usdt": 1,
-        "stars": 78,
-        "title": "1 USDC",
-        "type": "crypto_native_stars",
-        "coin": "USDC",
-        "qty": 1,
-    },
-    "prod_crypto_usdc_3": {
-        "amount": 279,
-        "usdt": 3,
-        "stars": 234,
-        "title": "3 USDC",
-        "type": "crypto_native_stars",
-        "coin": "USDC",
-        "qty": 3,
-    },
-    "prod_crypto_usdc_5": {
-        "amount": 455,
-        "usdt": 5,
-        "stars": 385,
-        "title": "5 USDC",
-        "type": "crypto_native_stars",
-        "coin": "USDC",
-        "qty": 5,
-    },
-    "prod_crypto_usdc_7": {
-        "amount": 630,
-        "usdt": 7,
-        "stars": 532,
-        "title": "7 USDC",
-        "type": "crypto_native_stars",
-        "coin": "USDC",
-        "qty": 7,
-    },
-    "prod_crypto_usdc_10": {
-        "amount": 890,
-        "usdt": 10,
-        "stars": 750,
-        "title": "10 USDC",
-        "type": "crypto_native_stars",
-        "coin": "USDC",
         "qty": 10,
     },
 }
@@ -1090,8 +1045,7 @@ async def text_crypto_main(message: Message, state: FSMContext):
   await state.clear()
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="💲 USDT", callback_data="crypto_coin_USDT")],
-          [InlineKeyboardButton(text="💶 USDC", callback_data="crypto_coin_USDC")],
+          [InlineKeyboardButton(text="💲 USDT (Tether)", callback_data="crypto_coin_USDT")],
           [InlineKeyboardButton(text="💎 GRAM (TON)", callback_data="crypto_coin_TON")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
@@ -1438,18 +1392,6 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
     )
-  elif coin == "USDC":
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="1 USDC - 95 ₽ (78 звезд) ⭐", callback_data="prod_crypto_usdc_1")],
-            [InlineKeyboardButton(text="3 USDC - 279 ₽ (234 звезд) ⭐", callback_data="prod_crypto_usdc_3")],
-            [InlineKeyboardButton(text="5 USDC - 455 ₽ (385 звезд) ⭐", callback_data="prod_crypto_usdc_5")],
-            [InlineKeyboardButton(text="7 USDC - 630 ₽ (532 звезд) ⭐", callback_data="prod_crypto_usdc_7")],
-            [InlineKeyboardButton(text="10 USDC - 890 ₽ (750 звезд) ⭐", callback_data="prod_crypto_usdc_10")],
-            [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT/USDC", callback_data="exchange_gram_to_stable")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
-        ]
-    )
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -1458,7 +1400,7 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="5 USDT - 455 ₽ (385 звезд) ⭐", callback_data="prod_crypto_usdt_5")],
             [InlineKeyboardButton(text="7 USDT - 630 ₽ (532 звезд) ⭐", callback_data="prod_crypto_usdt_7")],
             [InlineKeyboardButton(text="10 USDT - 890 ₽ (750 звезд) ⭐", callback_data="prod_crypto_usdt_10")],
-            [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT/USDC", callback_data="exchange_gram_to_stable")],
+            [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
     )
@@ -1472,7 +1414,6 @@ async def crypto_back(callback: CallbackQuery, state: FSMContext):
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
           [InlineKeyboardButton(text="💲 USDT", callback_data="crypto_coin_USDT")],
-          [InlineKeyboardButton(text="💶 USDC", callback_data="crypto_coin_USDC")],
           [InlineKeyboardButton(text="💎 GRAM (TON)", callback_data="crypto_coin_TON")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
@@ -1500,18 +1441,6 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
     )
-  elif coin == "USDC":
-    kb = InlineKeyboardMarkup(
-        inline_keyboard=[
-            [InlineKeyboardButton(text="1 USDC - 95 ₽ (78 звезд) ⭐", callback_data="prod_crypto_usdc_1")],
-            [InlineKeyboardButton(text="3 USDC - 279 ₽ (234 звезд) ⭐", callback_data="prod_crypto_usdc_3")],
-            [InlineKeyboardButton(text="5 USDC - 455 ₽ (385 звезд) ⭐", callback_data="prod_crypto_usdc_5")],
-            [InlineKeyboardButton(text="7 USDC - 630 ₽ (532 звезд) ⭐", callback_data="prod_crypto_usdc_7")],
-            [InlineKeyboardButton(text="10 USDC - 890 ₽ (750 звезд) ⭐", callback_data="prod_crypto_usdc_10")],
-            [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT/USDC", callback_data="exchange_gram_to_stable")],
-            [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
-        ]
-    )
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -1520,7 +1449,7 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
             [InlineKeyboardButton(text="5 USDT - 455 ₽ (385 звезд) ⭐", callback_data="prod_crypto_usdt_5")],
             [InlineKeyboardButton(text="7 USDT - 630 ₽ (532 звезд) ⭐", callback_data="prod_crypto_usdt_7")],
             [InlineKeyboardButton(text="10 USDT - 890 ₽ (750 звезд) ⭐", callback_data="prod_crypto_usdt_10")],
-            [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT/USDC", callback_data="exchange_gram_to_stable")],
+            [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
     )
@@ -1540,7 +1469,9 @@ async def custom_crypto_amount(callback: CallbackQuery, state: FSMContext):
 @rt.callback_query(F.data == "exchange_gram_to_stable")
 async def exchange_gram_to_stable(callback: CallbackQuery, state: FSMContext):
   kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")]])
-  await safe_edit(callback, "<b>🔄 Обмен GRAM на USDT/USDC (Полуавтоматический режим)</b>\n\nНапишите в чат детальный запрос (например: <code>Хочу обменять 10 GRAM на USDT</code>):", kb)
+  await safe_edit(callback, "<b>🔄 Обмен GRAM на USDT (Полуавтоматический режим)</b>\n\nНапишите в чат детальный запрос (например: <code>Хочу обменять 10 GRAM на USDT</code>):", kb)
+  await state.set_state(BuyCryptoSteps.entering_custom_amount)
+  await callback.answer()
   await state.set_state(BuyCryptoSteps.entering_custom_amount)
   await callback.answer()
 
@@ -1595,8 +1526,8 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
   rub_price = product_info.get("amount", 0)
   usdt_amount = product_info.get("usdt", 0)
 
-  # Для USDT и USDC оплата только через СБП (рублями) и Telegram Stars (звёздами)!
-  is_stable = prod_key.startswith("prod_crypto_usdt") or prod_key.startswith("prod_crypto_usdc")
+  # Для USDT оплата через Telegram Stars (звёздами)!
+  is_stable = prod_key.startswith("prod_crypto_usdt")
 
   # Формируем счет CryptoBot (только для TON/GRAM)
   cryptobot_url = None
@@ -1616,7 +1547,7 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
 
   buttons = []
 
-  # 1. Кнопка оплаты Telegram Stars (для USDT/USDC)
+  # 1. Кнопка оплаты Telegram Stars (для USDT)
   if product_info.get("stars"):
     buttons.append([InlineKeyboardButton(text=f"⭐ Оплатить звёздами ({product_info['stars']} Stars)", callback_data=f"buystars_crypto_{prod_key}")])
 
