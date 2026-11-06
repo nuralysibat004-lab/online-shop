@@ -40,6 +40,7 @@ TEST_BALANCE = 999
 MIN_WITHDRAW = 50
 REFERRAL_BONUS = 50
 REFERRAL_MIN_STARS = 350
+REFERRAL_MIN_AMOUNT = 1  # ВРЕМЕННО 1 ₽ для теста (в бою 300 ₽)
 
 ADMIN_IDS = [int(x.strip()) for x in ALLOWED_ADMIN_IDS.split(",") if x.strip().isdigit()]
 ADMIN_ID = 7461353872
@@ -50,7 +51,7 @@ CRYSTAL_SECRET_KEY = os.getenv("CRYSTAL_SECRET_KEY", "")
 CRYSTAL_CASH_NAME = os.getenv("CRYSTAL_CASH_NAME", "GumStars")
 
 cryptopay = AioCryptoPay(token=os.getenv("CRYPTO_BOT_TOKEN"), network=Networks.MAIN_NET)
-FRAGMENT_API_URL = "https://v1.fragmentapi.com/api/v1/partner"
+FRAGMENT_API_URL = os.getenv("FRAGMENT_API_URL", "https://api.fragment-api.com/api/v1/partner")
 FRAGMENT_API_KEY = os.getenv("FRAGMENT_API_KEY", "")
 REVIEW_CHANNEL_ID = os.getenv("REVIEW_CHANNEL_ID", "@your_reviews_channel")
 
@@ -173,6 +174,13 @@ class BuyCryptoSteps(StatesGroup):
 
 # ПРАВИЛЬНЫЙ ПРАЙС-ЛИСТ (GRAM за USDT, USDT за Stars)
 PRICES = {
+    "prod_stars_test": {
+        "amount": 1,
+        "usdt": 0.01,
+        "title": "1 Telegram Star (ТЕСТ)",
+        "type": "stars",
+        "quantity": 1,
+    },
     "prod_stars_50": {
         "amount": 78,
         "usdt": 0.89,
@@ -282,6 +290,15 @@ PRICES = {
         "type": "crypto",
         "coin": "TON",
         "qty": 10,
+    },
+    "prod_crypto_usdt_test": {
+        "amount": 1,
+        "usdt": 0.01,
+        "stars": 1,
+        "title": "0.01 USDT (ТЕСТ)",
+        "type": "crypto_native_stars",
+        "coin": "USDT",
+        "qty": 0.01,
     },
     "prod_crypto_usdt_1": {
         "amount": 95,
@@ -1395,6 +1412,7 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="🧪 ТЕСТ: 0.01 USDT — 1 звезда ⭐", callback_data="prod_crypto_usdt_test")],
             [InlineKeyboardButton(text="1 USDT - 95 ₽ (78 звезд) ⭐", callback_data="prod_crypto_usdt_1")],
             [InlineKeyboardButton(text="3 USDT - 279 ₽ (234 звезд) ⭐", callback_data="prod_crypto_usdt_3")],
             [InlineKeyboardButton(text="5 USDT - 455 ₽ (385 звезд) ⭐", callback_data="prod_crypto_usdt_5")],
@@ -1444,6 +1462,7 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="🧪 ТЕСТ: 0.01 USDT — 1 звезда ⭐", callback_data="prod_crypto_usdt_test")],
             [InlineKeyboardButton(text="1 USDT - 95 ₽ (78 звезд) ⭐", callback_data="prod_crypto_usdt_1")],
             [InlineKeyboardButton(text="3 USDT - 279 ₽ (234 звезд) ⭐", callback_data="prod_crypto_usdt_3")],
             [InlineKeyboardButton(text="5 USDT - 455 ₽ (385 звезд) ⭐", callback_data="prod_crypto_usdt_5")],
@@ -1470,8 +1489,6 @@ async def custom_crypto_amount(callback: CallbackQuery, state: FSMContext):
 async def exchange_gram_to_stable(callback: CallbackQuery, state: FSMContext):
   kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")]])
   await safe_edit(callback, "<b>🔄 Обмен GRAM на USDT (Полуавтоматический режим)</b>\n\nНапишите в чат детальный запрос (например: <code>Хочу обменять 10 GRAM на USDT</code>):", kb)
-  await state.set_state(BuyCryptoSteps.entering_custom_amount)
-  await callback.answer()
   await state.set_state(BuyCryptoSteps.entering_custom_amount)
   await callback.answer()
 
@@ -1661,7 +1678,7 @@ async def successful_payment_handler(message: Message):
       )
     buyer = message.from_user
     try:
-      if product_info.get("amount", 0) >= 300:
+      if product_info.get("amount", 0) >= REFERRAL_MIN_AMOUNT:
         user_id = buyer.id
         user_record = bot_db.get_user(user_id)
         if user_record and len(user_record) > 1 and user_record[1]:
@@ -1828,9 +1845,9 @@ async def check_crypto_payment(callback: CallbackQuery):
       except Exception as e:
         logger.error(f"Не удалось отправить уведомление админу: {e}")
 
-      # Реферальный бонус (при покупке от 300 руб)
+      # Реферальный бонус (при покупке от 300 руб, временно от 1 руб для теста)
       try:
-        if product_info.get("amount", 0) >= 300:
+        if product_info.get("amount", 0) >= REFERRAL_MIN_AMOUNT:
           user_id = buyer.id
           user_record = bot_db.get_user(user_id)
           if user_record and len(user_record) > 1 and user_record[1]:
@@ -2037,6 +2054,7 @@ async def show_products(message: Message | CallbackQuery, state: FSMContext):
   if category == "stars":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
+            [InlineKeyboardButton(text="🧪 ТЕСТ: 1 звезда — 1 ₽ (0.01 USDT)", callback_data="prod_stars_test")],
             [InlineKeyboardButton(text="⭐ 50 звезд — 78 ₽", callback_data="prod_stars_50")],
             [InlineKeyboardButton(text="⭐ 100 звезд — 156 ₽", callback_data="prod_stars_100")],
             [InlineKeyboardButton(text="⭐ 150 звезд — 234 ₽", callback_data="prod_stars_150")],
@@ -2238,9 +2256,9 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
         extra=f"Получатель: {target_user} | Инвойс: #{invoice_id}",
     )
 
-    # Реферальный бонус (при покупке от 300 руб)
+    # Реферальный бонус (при покупке от 300 руб, временно от 1 руб для теста)
     try:
-      if rub_price >= 300:
+      if rub_price >= REFERRAL_MIN_AMOUNT:
         user_id = buyer.id
         user_record = bot_db.get_user(user_id)
         if user_record and len(user_record) > 1 and user_record[1]:
