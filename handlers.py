@@ -1842,24 +1842,66 @@ async def check_crypto_payment(callback: CallbackQuery):
             f"👉 <i>Подарите подписку {source_tip} получателю:</i> <code>{address}</code>"
         )
 
-      # 3. Криптовалюта (GRAM в сети TON)
+      # 3. Криптовалюта (GRAM / TON / USDT)
       else:
-        await safe_edit(
-            callback,
-            "<b>✅ Оплата получена!</b>\n\n"
-            f"📦 Товар: <b>{product_info['title']}</b>\n"
-            f"🌐 Сеть: <b>{network}</b>\n\n"
-            "💎 <i>Средства успешно зачислены.</i>",
-            InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
-        )
-        admin_text = (
-            "<b>🪙 [НОВЫЙ ЗАКАЗ] КРИПТОВАЛЮТА!</b>\n\n"
-            f"<b>📦 Товар:</b> {product_info['title']} ({network})\n"
-            f"<b>👤 Покупатель:</b> {buyer_label} (ID: <code>{buyer.id}</code>)\n"
-            f"<b>🎯 Получатель:</b> <code>{address}</code>\n"
-            f"<b>💰 Оплачено:</b> <b>{product_info['amount']} ₽</b> ({invoice.amount} {invoice.asset})\n"
-            f"<b>🆔 Инвойс CryptoBot:</b> <code>#{invoice.invoice_id}</code>"
-        )
+        target_asset = product_info.get("coin", "TON")
+        target_qty = product_info.get("qty", 1)
+
+        # Пытаемся автоматически выдать чек через CryptoBot
+        check_url = None
+        for try_asset in [target_asset, "TON", "GRAM", "USDT"]:
+          try:
+            chk = await cryptopay.create_check(
+                asset=try_asset,
+                amount=target_qty,
+                pin_to_user_id=buyer.id,
+            )
+            check_url = chk.bot_check_url
+            break
+          except Exception as e:
+            logger.warning(f"Не удалось выдать чек с ассетом {try_asset}: {e}")
+
+        if check_url:
+          kb = InlineKeyboardMarkup(
+              inline_keyboard=[
+                  [InlineKeyboardButton(text=f"🎁 Забрать чек на {target_qty} {target_asset}", url=check_url)],
+                  [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+              ]
+          )
+          await safe_edit(
+              callback,
+              "<b>✅ Оплата получена! Ваш чек готов:</b>\n\n"
+              f"📦 Товар: <b>{product_info['title']}</b>\n"
+              f"🌐 Сеть: <b>{network}</b>\n\n"
+              f"👇 <b>Нажмите кнопку ниже, чтобы забрать чек в CryptoBot:</b>",
+              kb,
+          )
+          admin_text = (
+              "<b>⚡ [АВТО-ВЫДАЧА ЧЕКА] КРИПТОВАЛЮТА ВЫДАНА!</b>\n\n"
+              f"<b>📦 Товар:</b> {product_info['title']} ({network})\n"
+              f"<b>👤 Покупатель:</b> {buyer_label} (ID: <code>{buyer.id}</code>)\n"
+              f"<b>💰 Оплачено:</b> <b>{product_info['amount']} ₽</b> ({invoice.amount} {invoice.asset})\n"
+              f"<b>🆔 Инвойс CryptoBot:</b> <code>#{invoice.invoice_id}</code>\n"
+              f"<b>🔗 Чек выдан автоматически:</b> {check_url}"
+          )
+        else:
+          await safe_edit(
+              callback,
+              "<b>✅ Оплата получена!</b>\n\n"
+              f"📦 Товар: <b>{product_info['title']}</b>\n"
+              f"🌐 Сеть: <b>{network}</b>\n\n"
+              "⏳ <i>Заказ принят! Чек будет выдан администратором вручную в ближайшее время.</i>",
+              InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+          )
+          admin_text = (
+              "<b>🪙 [НОВЫЙ ЗАКАЗ] КРИПТОВАЛЮТА (ТРЕБУЕТСЯ РУЧНАЯ ВЫДАЧА)!</b>\n\n"
+              f"<b>📦 Товар:</b> {product_info['title']} ({network})\n"
+              f"<b>👤 Покупатель:</b> {buyer_label} (ID: <code>{buyer.id}</code>)\n"
+              f"<b>🎯 Получатель:</b> <code>{address}</code>\n"
+              f"<b>💰 Оплачено:</b> <b>{product_info['amount']} ₽</b> ({invoice.amount} {invoice.asset})\n"
+              f"<b>🆔 Инвойс CryptoBot:</b> <code>#{invoice.invoice_id}</code>\n"
+              "⚠️ <i>Не удалось создать чек автоматически. Проверьте баланс приложения в @CryptoPay и выдайте чек клиенту вручную!</i>"
+          )
 
       # Уведомление администратора
       try:
@@ -2256,14 +2298,45 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
       )
     # 3. Криптовалюта
     else:
-      await safe_edit(
-          callback,
-          "<b>✅ Оплата по СБП получена!</b>\n\n"
-          f"📦 Товар: <b>{product_info['title']}</b>\n"
-          f"🎯 Получатель: <code>{target_user}</code>\n\n"
-          "💎 <i>Криптовалюта успешно отправлена/чек сформирован.</i>",
-          InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
-      )
+      target_asset = product_info.get("coin", "TON")
+      target_qty = product_info.get("qty", 1)
+
+      check_url = None
+      for try_asset in [target_asset, "TON", "GRAM", "USDT"]:
+        try:
+          chk = await cryptopay.create_check(
+              asset=try_asset,
+              amount=target_qty,
+              pin_to_user_id=buyer.id,
+          )
+          check_url = chk.bot_check_url
+          break
+        except Exception as e:
+          logger.warning(f"Не удалось выдать чек СБП с ассетом {try_asset}: {e}")
+
+      if check_url:
+        kb = InlineKeyboardMarkup(
+            inline_keyboard=[
+                [InlineKeyboardButton(text=f"🎁 Забрать чек на {target_qty} {target_asset}", url=check_url)],
+                [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+            ]
+        )
+        await safe_edit(
+            callback,
+            "<b>✅ Оплата по СБП получена! Ваш чек готов:</b>\n\n"
+            f"📦 Товар: <b>{product_info['title']}</b>\n\n"
+            f"👇 <b>Нажмите кнопку ниже, чтобы забрать монеты в CryptoBot:</b>",
+            kb,
+        )
+      else:
+        await safe_edit(
+            callback,
+            "<b>✅ Оплата по СБП получена!</b>\n\n"
+            f"📦 Товар: <b>{product_info['title']}</b>\n"
+            f"🎯 Получатель: <code>{target_user}</code>\n\n"
+            "⏳ <i>Заказ принят! Чек будет выдан администратором вручную в ближайшее время.</i>",
+            InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+        )
 
     # Уведомление администратора об успешной оплате
     await notify_admin_order(
