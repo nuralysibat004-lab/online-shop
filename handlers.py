@@ -1189,32 +1189,25 @@ async def ref_leaderboard_callback(callback: CallbackQuery):
 @rt.callback_query(F.data == "my_referrals_list")
 async def my_referrals_list_callback(callback: CallbackQuery):
   user_id = callback.from_user.id
-  ref_ids = bot_db.get_referrals_list(user_id)
+  try:
+    ref_ids = bot_db.get_referrals_list(user_id)
+  except Exception:
+    ref_ids = []
 
-  lines = [
-      "<b>📋 СПИСОК ВАШИХ РЕФЕРАЛОВ</b>\n",
-      f"Всего приглашено: <b>{len(ref_ids)}</b> чел.\n",
-  ]
-
-  if not ref_ids:
-    lines.append("<i>У вас пока нет приглашенных друзей. Отправьте им вашу реферальную ссылку из меню!</i>")
-  else:
-    for idx, r_id in enumerate(ref_ids, start=1):
-      s_id = str(r_id)
-      masked_id = s_id[:4] + "***" if len(s_id) >= 6 else s_id
-      has_purchased = bot_db.has_received_bonus_for(r_id)
-      status_str = "✅ Сделал покупку (+50 ⭐)" if has_purchased else "⏳ Ещё не делал покупку"
-      lines.append(f"{idx}. <code>ID {masked_id}</code> — {status_str}")
-
+  count = len(ref_ids)
+  text = (
+      f"<b>📋 ВАШИ РЕФЕРАЛЫ</b>\n\n"
+      f"👥 Всего приглашено друзей: <b>{count}</b>\n\n"
+      f"<i>Каждому приглашенному другу доступна реферальная ссылка. Когда друг совершает покупку от 300 ₽, вам на баланс автоматически начисляется 50 ⭐!</i>"
+  )
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
           [InlineKeyboardButton(text="« Назад в Рефералы", callback_data="ref")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
   )
-  await safe_edit(callback, "\n".join(lines), kb)
+  await safe_edit(callback, text, kb)
   await callback.answer()
-
 
 
 @rt.callback_query(F.data == "profile")
