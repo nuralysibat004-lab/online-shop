@@ -947,8 +947,12 @@ async def text_stars(message: Message, state: FSMContext):
 async def text_orders(message: Message, state: FSMContext):
   await state.clear()
   user_id = message.from_user.id
-  stats = bot_db.get_user_orders_stats(user_id)
-  
+  try:
+    stats = bot_db.get_user_orders_stats(user_id)
+  except Exception as e:
+    logger.error(f"Error fetching order stats for user {user_id}: {e}")
+    stats = {"total": 0, "in_progress": 0, "completed": 0, "cancelled": 0}
+
   text = (
       "📦 <b>МОИ ЗАКАЗЫ</b>\n"
       "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
@@ -978,16 +982,20 @@ async def text_orders(message: Message, state: FSMContext):
 async def my_orders_callback(callback: CallbackQuery):
   user_id = callback.from_user.id
   category = callback.data
-  stats = bot_db.get_user_orders_stats(user_id)
-  
-  status_filter_map = {
-      "orders_in_progress": "in_progress",
-      "orders_completed": "completed",
-      "orders_cancelled": "cancelled"
-  }
-  db_status = status_filter_map.get(category)
-  orders_list = bot_db.get_user_orders(user_id, status=db_status)
-  
+  try:
+    stats = bot_db.get_user_orders_stats(user_id)
+    status_filter_map = {
+        "orders_in_progress": "in_progress",
+        "orders_completed": "completed",
+        "orders_cancelled": "cancelled"
+    }
+    db_status = status_filter_map.get(category)
+    orders_list = bot_db.get_user_orders(user_id, status=db_status)
+  except Exception as e:
+    logger.error(f"Error in my_orders_callback: {e}")
+    stats = {"total": 0, "in_progress": 0, "completed": 0, "cancelled": 0}
+    orders_list = []
+
   category_labels = {
       "orders_in_progress": "🔵 В процессе",
       "orders_completed": "🟢 Выполненные",
@@ -995,7 +1003,7 @@ async def my_orders_callback(callback: CallbackQuery):
       "my_orders": "📦 Все заказы"
   }
   selected_label = category_labels.get(category, "📦 Все заказы")
-  
+
   if not orders_list:
     orders_text = "<i>В этой категории у вас пока нет заказов.</i>"
   else:
