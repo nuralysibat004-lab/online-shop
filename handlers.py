@@ -189,7 +189,7 @@ PRICES = {
     "prod_crypto_ton_5": {"amount": 550, "usdt": 6.82, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
     "prod_crypto_ton_7": {"amount": 770, "usdt": 9.55, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
     "prod_crypto_ton_10": {"amount": 1100, "usdt": 13.64, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
-    "prod_crypto_usdt_1": {"amount": 1, "usdt": 1, "stars": 1, "title": "1 USDT (TEST)", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
+    "prod_crypto_usdt_1": {"amount": 95, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
     "prod_crypto_usdt_3": {"amount": 279, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
     "prod_crypto_usdt_5": {"amount": 455, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
     "prod_crypto_usdt_7": {"amount": 630, "usdt": 7, "stars": 532, "title": "7 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
