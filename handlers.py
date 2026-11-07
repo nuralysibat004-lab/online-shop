@@ -1021,6 +1021,7 @@ async def text_ref(message: Message, state: FSMContext):
   )
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
+          [InlineKeyboardButton(text="📋 Мои рефералы (список)", callback_data="my_referrals_list")],
           [InlineKeyboardButton(text="🏆 Лидерборд (Топ рефералов)", callback_data="ref_leaderboard")],
           [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
@@ -1162,6 +1163,7 @@ async def ref_callback(callback: CallbackQuery, state: FSMContext):
   )
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
+          [InlineKeyboardButton(text="📋 Мои рефералы (список)", callback_data="my_referrals_list")],
           [InlineKeyboardButton(text="🏆 Лидерборд (Топ рефералов)", callback_data="ref_leaderboard")],
           [InlineKeyboardButton(text="📤 Вывести звёзды", callback_data="withdraw_stars")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
@@ -1197,6 +1199,36 @@ async def ref_leaderboard_callback(callback: CallbackQuery):
   lines.append(f"\n👤 <b>Ваш результат:</b> позиция <b>#{my_rank}</b> (приглашено: <b>{my_count}</b>)")
   lines.append(f"🪙 <b>Ваш баланс звёзд:</b> <b>{get_balance(user_id)}</b> ⭐")
   lines.append(f"\n<i>Приглашайте друзей по ссылке и получайте по <b>{REFERRAL_BONUS} ⭐</b> за каждую покупку от 1 ₽ (🧪 ТЕСТ)!</i>")
+
+  kb = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="« Назад в Рефералы", callback_data="ref")],
+          [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+      ]
+  )
+  await safe_edit(callback, "\n".join(lines), kb)
+  await callback.answer()
+
+
+@rt.callback_query(F.data == "my_referrals_list")
+async def my_referrals_list_callback(callback: CallbackQuery):
+  user_id = callback.from_user.id
+  ref_ids = bot_db.get_referrals_list(user_id)
+
+  lines = [
+      "<b>📋 СПИСОК ВАШИХ РЕФЕРАЛОВ</b>\n",
+      f"Всего приглашено: <b>{len(ref_ids)}</b> чел.\n",
+  ]
+
+  if not ref_ids:
+    lines.append("<i>У вас пока нет приглашенных друзей. Отправьте им вашу реферальную ссылку из меню!</i>")
+  else:
+    for idx, r_id in enumerate(ref_ids, start=1):
+      s_id = str(r_id)
+      masked_id = s_id[:4] + "***" if len(s_id) >= 6 else s_id
+      has_purchased = bot_db.has_received_bonus_for(r_id)
+      status_str = "✅ Сделал покупку (+50 ⭐)" if has_purchased else "⏳ Ещё не делал покупку"
+      lines.append(f"{idx}. <code>ID {masked_id}</code> — {status_str}")
 
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
