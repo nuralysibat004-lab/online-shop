@@ -970,7 +970,6 @@ async def text_orders(message: Message, state: FSMContext):
               InlineKeyboardButton(text=f"🟢 Выполненные ({stats['completed']})", callback_data="orders_completed"),
           ],
           [InlineKeyboardButton(text=f"🔴 Отменённые ({stats['cancelled']})", callback_data="orders_cancelled")],
-          [InlineKeyboardButton(text="✍️ Написать админам", callback_data="open_support_direct")],
           [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")],
       ]
   )
@@ -1028,7 +1027,6 @@ async def my_orders_callback(callback: CallbackQuery):
               InlineKeyboardButton(text=f"🟢 Выполненные ({stats['completed']})", callback_data="orders_completed"),
           ],
           [InlineKeyboardButton(text=f"🔴 Отменённые ({stats['cancelled']})", callback_data="orders_cancelled")],
-          [InlineKeyboardButton(text="✍️ Написать админам", callback_data="open_support_direct")],
           [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")],
       ]
   )
