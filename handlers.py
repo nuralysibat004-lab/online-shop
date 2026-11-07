@@ -1677,6 +1677,7 @@ async def check_crypto_payment(callback: CallbackQuery):
       product_info = PRICES.get(prod_key, {"title": "Товар", "amount": 0})
       buyer = callback.from_user
       buyer_label = f"@{buyer.username}" if buyer.username else html.escape(buyer.first_name or f"ID {buyer.id}")
+      admin_text = f"<b>📦 [НОВЫЙ ЗАКАЗ] {product_info.get('title')}</b>\nПокупатель: {buyer_label}"
 
       # 1. Автоматическая доставка звёзд через Fragment API
       if prod_key.startswith("prod_stars_"):
