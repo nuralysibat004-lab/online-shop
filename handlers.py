@@ -947,24 +947,26 @@ async def text_stars(message: Message, state: FSMContext):
 async def text_orders(message: Message, state: FSMContext):
   await state.clear()
   user_id = message.from_user.id
+  stats = bot_db.get_user_orders_stats(user_id)
+  
   text = (
       "📦 <b>МОИ ЗАКАЗЫ</b>\n"
       "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
-      "Всего заказов: <b>0</b>\n\n"
-      "🔵 В процессе: <b>0</b>\n"
-      "🟢 Выполненные: <b>0</b>\n"
-      "🔴 Отменённые: <b>0</b>\n"
+      f"Всего заказов: <b>{stats['total']}</b>\n\n"
+      f"🔵 В процессе: <b>{stats['in_progress']}</b>\n"
+      f"🟢 Выполненные: <b>{stats['completed']}</b>\n"
+      f"🔴 Отменённые: <b>{stats['cancelled']}</b>\n"
       "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
       "Выберите категорию 👇"
   )
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
           [
-              InlineKeyboardButton(text="🔵 В процессе (0)", callback_data="orders_in_progress"),
-              InlineKeyboardButton(text="🟢 Выполненные (0)", callback_data="orders_completed"),
+              InlineKeyboardButton(text=f"🔵 В процессе ({stats['in_progress']})", callback_data="orders_in_progress"),
+              InlineKeyboardButton(text=f"🟢 Выполненные ({stats['completed']})", callback_data="orders_completed"),
           ],
-          [InlineKeyboardButton(text="🔴 Отменённые (0)", callback_data="orders_cancelled")],
-          [InlineKeyboardButton(text="✍️ Написать админам", url="https://t.me/bull9bull")],
+          [InlineKeyboardButton(text=f"🔴 Отменённые ({stats['cancelled']})", callback_data="orders_cancelled")],
+          [InlineKeyboardButton(text="✍️ Написать админам", callback_data="open_support_direct")],
           [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")],
       ]
   )
@@ -974,7 +976,18 @@ async def text_orders(message: Message, state: FSMContext):
 @rt.callback_query(F.data == "my_orders")
 @rt.callback_query(F.data.in_({"orders_in_progress", "orders_completed", "orders_cancelled"}))
 async def my_orders_callback(callback: CallbackQuery):
+  user_id = callback.from_user.id
   category = callback.data
+  stats = bot_db.get_user_orders_stats(user_id)
+  
+  status_filter_map = {
+      "orders_in_progress": "in_progress",
+      "orders_completed": "completed",
+      "orders_cancelled": "cancelled"
+  }
+  db_status = status_filter_map.get(category)
+  orders_list = bot_db.get_user_orders(user_id, status=db_status)
+  
   category_labels = {
       "orders_in_progress": "🔵 В процессе",
       "orders_completed": "🟢 Выполненные",
@@ -982,22 +995,32 @@ async def my_orders_callback(callback: CallbackQuery):
       "my_orders": "📦 Все заказы"
   }
   selected_label = category_labels.get(category, "📦 Все заказы")
+  
+  if not orders_list:
+    orders_text = "<i>В этой категории у вас пока нет заказов.</i>"
+  else:
+    formatted_items = []
+    for o in orders_list[:5]:  # Топ-5 последних заказов
+      order_id, amount, provider, st, created_at = o[0], o[1], o[2], o[3], o[4]
+      formatted_items.append(f"• <b>Заказ #{order_id}</b> — {amount} ₽ ({provider}) | <i>{st}</i>")
+    orders_text = "\n".join(formatted_items)
+
   text = (
       "📦 <b>МОИ ЗАКАЗЫ</b>\n"
       "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
       f"Категория: <b>{selected_label}</b>\n\n"
-      "<i>В этой категории у вас пока нет заказов.</i>\n"
+      f"{orders_text}\n"
       "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
       "Выберите категорию 👇"
   )
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
           [
-              InlineKeyboardButton(text="🔵 В процессе (0)", callback_data="orders_in_progress"),
-              InlineKeyboardButton(text="🟢 Выполненные (0)", callback_data="orders_completed"),
+              InlineKeyboardButton(text=f"🔵 В процессе ({stats['in_progress']})", callback_data="orders_in_progress"),
+              InlineKeyboardButton(text=f"🟢 Выполненные ({stats['completed']})", callback_data="orders_completed"),
           ],
-          [InlineKeyboardButton(text="🔴 Отменённые (0)", callback_data="orders_cancelled")],
-          [InlineKeyboardButton(text="✍️ Написать админам", url="https://t.me/bull9bull")],
+          [InlineKeyboardButton(text=f"🔴 Отменённые ({stats['cancelled']})", callback_data="orders_cancelled")],
+          [InlineKeyboardButton(text="✍️ Написать админам", callback_data="open_support_direct")],
           [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")],
       ]
   )
@@ -1061,6 +1084,25 @@ async def text_support(message: Message, state: FSMContext):
       "📧 Официальная почта: <code>gumsupport@gmail.com</code>"
   )
   await send_section(message, "support", support_text, back_keyboard())
+
+
+@rt.callback_query(F.data == "open_support_direct")
+async def open_support_direct_callback(callback: CallbackQuery, state: FSMContext):
+  await state.set_state(user_states.waiting_for_support)
+  support_text = (
+      "<b>🛟 Написать администрации GumStars</b>\n\n"
+      "Отправьте сюда ваше сообщение, вопрос по заказу или проблему — служба поддержки ответит вам прямо в боте.\n\n"
+      "👤 <b>Личный Telegram админа:</b> @bull9bull\n"
+      "📧 <b>Официальная почта:</b> <code>gumsupport@gmail.com</code>"
+  )
+  kb = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [InlineKeyboardButton(text="💬 Написать админу в ЛС (@bull9bull)", url="https://t.me/bull9bull")],
+          [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")],
+      ]
+  )
+  await safe_edit(callback, support_text, kb)
+  await callback.answer()
 
 
 @rt.message(F.text.in_({"🔴 Прочее", "⚙️ Прочее", "Прочее", "прочее", "📄 Документы и оферта", "Документы", "Оферта", "Контакты"}))
