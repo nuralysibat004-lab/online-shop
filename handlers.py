@@ -2088,17 +2088,21 @@ async def show_products(message: Message | CallbackQuery, state: FSMContext):
   if category == "stars":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ 50 звезд — 78 ₽ (0.89 USDT)", callback_data="prod_stars_50")],
-            [InlineKeyboardButton(text="⭐ 100 звезд — 156 ₽ (1.78 USDT)", callback_data="prod_stars_100")],
-            [InlineKeyboardButton(text="⭐ 150 звезд — 234 ₽ (2.68 USDT)", callback_data="prod_stars_150")],
-            [InlineKeyboardButton(text="⭐ 250 звезд — 390 ₽ (4.47 USDT)", callback_data="prod_stars_250")],
-            [InlineKeyboardButton(text="⭐ 500 звезд — 780 ₽ (8.94 USDT)", callback_data="prod_stars_500")],
-            [InlineKeyboardButton(text="⭐ 1000 звезд — 1560 ₽ (17.89 USDT)", callback_data="prod_stars_1000")],
-            [InlineKeyboardButton(text="⭐ 2500 звезд — 3900 ₽ (44.72 USDT)", callback_data="prod_stars_2500")],
+            [InlineKeyboardButton(text="⭐ 50 звезд — 72 / 78 ₽ (0.89 USDT)", callback_data="prod_stars_50")],
+            [InlineKeyboardButton(text="⭐ 100 звезд — 145 / 156 ₽ (1.78 USDT)", callback_data="prod_stars_100")],
+            [InlineKeyboardButton(text="⭐ 150 звезд — 218 / 234 ₽ (2.68 USDT)", callback_data="prod_stars_150")],
+            [InlineKeyboardButton(text="⭐ 250 звезд — 365 / 390 ₽ (4.47 USDT)", callback_data="prod_stars_250")],
+            [InlineKeyboardButton(text="⭐ 500 звезд — 730 / 780 ₽ (8.94 USDT)", callback_data="prod_stars_500")],
+            [InlineKeyboardButton(text="⭐ 1000 звезд — 1460 / 1560 ₽ (17.89 USDT)", callback_data="prod_stars_1000")],
+            [InlineKeyboardButton(text="⭐ 2500 звезд — 3650 / 3900 ₽ (44.72 USDT)", callback_data="prod_stars_2500")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
-    text = "<b>⭐ Выберите пакет звезд:</b>"
+    text = (
+        "<b>⭐ Выберите пакет звезд:</b>\n\n"
+        "💳 <i>Формат цен: <b>Криптобот (со скидкой) / СБП (банковская карта)</b></i>\n"
+        "💎 <i>Оплата через CryptoBot дешевле за счёт отсутствия комиссий!</i>"
+    )
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -2131,6 +2135,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   rub_price = product_info["amount"]
   usdt_amount = product_info["usdt"]
   is_stars = product_info.get("type") == "stars"
+  crypto_rub = int(round(usdt_amount * 81))
 
   # 1. Формируем счет CryptoBot (USDT)
   cryptobot_url = None
@@ -2168,7 +2173,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
 
   # Кнопки CryptoBot
   if cryptobot_url:
-    cb_text = f"💎 Оплатить криптой ({usdt_amount} USDT)" if is_stars else f"💎 Оплатить через CryptoBot ({usdt_amount} USDT)"
+    cb_text = f"💎 Оплатить криптой ({usdt_amount} USDT ~ {crypto_rub} ₽)" if is_stars else f"💎 Оплатить через CryptoBot ({usdt_amount} USDT)"
     buttons.append([InlineKeyboardButton(text=cb_text, url=cryptobot_url)])
     buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату CryptoBot", callback_data=f"checkcrypto_{cryptobot_id}")])
 
@@ -2180,8 +2185,10 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     order_msg = (
         "<b>✅ Заказ успешно сформирован!</b>\n\n"
         f"📦 Товар: <b>{product_info['title']}</b>\n"
-        f"👤 Получатель: <code>{target_user}</code>\n"
-        f"💰 Стоимость: <b>{rub_price} ₽</b> (по СБП) или <b>{usdt_amount} USDT</b> (криптой)\n\n"
+        f"👤 Получатель: <code>{target_user}</code>\n\n"
+        f"💰 <b>Стоимость к оплате:</b>\n"
+        f"• <b>По СБП (карты РФ):</b> <b>{rub_price} ₽</b>\n"
+        f"• <b>Через CryptoBot (со скидкой):</b> <b>{usdt_amount} USDT (~{crypto_rub} ₽)</b>\n\n"
         "<b>Выберите способ оплаты ниже:</b>\n"
         "• <b>🇷🇺 СБП (Система быстрых платежей)</b> — моментально через любой банк РФ\n"
         "• <b>💎 CryptoBot</b> — оплата со скидкой в USDT прямо в Telegram"
