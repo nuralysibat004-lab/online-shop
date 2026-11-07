@@ -40,7 +40,7 @@ TEST_BALANCE = 999
 MIN_WITHDRAW = 50
 REFERRAL_BONUS = 50
 REFERRAL_MIN_STARS = 350
-REFERRAL_MIN_AMOUNT = 1  # 🧪 ТЕСТОВЫЙ РЕЖИМ: Бонус 50 звезд начисляется при покупке от 1 ₽
+REFERRAL_MIN_AMOUNT = 300  # Бонус 50 звезд начисляется при первой покупке от 300 ₽
 
 ADMIN_IDS = [int(x.strip()) for x in ALLOWED_ADMIN_IDS.split(",") if x.strip().isdigit()]
 ADMIN_ID = 7461353872
@@ -172,8 +172,8 @@ class BuyCryptoSteps(StatesGroup):
   entering_custom_amount = State()
 
 
-# БОЕВЫЕ ЦЕНЫ (СОХРАНЕНЫ ДЛЯ БЫСТРОГО ВОЗВРАТА)
-REAL_PRICES = {
+# БОЕВЫЕ ЦЕНЫ МАГАЗИНА
+PRICES = {
     "prod_stars_50": {"amount": 78, "usdt": 0.89, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
     "prod_stars_100": {"amount": 156, "usdt": 1.78, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
     "prod_stars_150": {"amount": 234, "usdt": 2.68, "title": "150 Telegram Stars", "type": "stars", "quantity": 150},
@@ -194,30 +194,6 @@ REAL_PRICES = {
     "prod_crypto_usdt_5": {"amount": 455, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
     "prod_crypto_usdt_7": {"amount": 630, "usdt": 7, "stars": 532, "title": "7 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
     "prod_crypto_usdt_10": {"amount": 890, "usdt": 10, "stars": 750, "title": "10 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 10},
-}
-
-# 🧪 ТЕСТОВЫЙ ПРАЙС-ЛИСТ (ВСЁ ПО 1 ₽ / 0.01 USDT ДЛЯ БЕЗОПАСНОЙ ПРОВЕРКИ)
-PRICES = {
-    "prod_stars_50": {"amount": 1, "usdt": 0.01, "title": "50 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 50},
-    "prod_stars_100": {"amount": 1, "usdt": 0.01, "title": "100 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 100},
-    "prod_stars_150": {"amount": 1, "usdt": 0.01, "title": "150 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 150},
-    "prod_stars_250": {"amount": 1, "usdt": 0.01, "title": "250 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 250},
-    "prod_stars_500": {"amount": 1, "usdt": 0.01, "title": "500 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 500},
-    "prod_stars_1000": {"amount": 1, "usdt": 0.01, "title": "1000 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 1000},
-    "prod_stars_2500": {"amount": 1, "usdt": 0.01, "title": "2500 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 2500},
-    "prod_prem_3": {"amount": 1, "usdt": 0.01, "title": "Telegram Premium 3 мес (ТЕСТ 0.01$)", "type": "premium", "months": 3},
-    "prod_prem_6": {"amount": 1, "usdt": 0.01, "title": "Telegram Premium 6 мес (ТЕСТ 0.01$)", "type": "premium", "months": 6},
-    "prod_prem_12": {"amount": 1, "usdt": 0.01, "title": "Telegram Premium 12 мес (ТЕСТ 0.01$)", "type": "premium", "months": 12},
-    "prod_crypto_ton_1": {"amount": 1, "usdt": 0.01, "title": "1 GRAM (TON) (ТЕСТ 0.01$)", "type": "crypto", "coin": "TON", "qty": 1},
-    "prod_crypto_ton_3": {"amount": 1, "usdt": 0.01, "title": "3 GRAM (TON) (ТЕСТ 0.01$)", "type": "crypto", "coin": "TON", "qty": 3},
-    "prod_crypto_ton_5": {"amount": 1, "usdt": 0.01, "title": "5 GRAM (TON) (ТЕСТ 0.01$)", "type": "crypto", "coin": "TON", "qty": 5},
-    "prod_crypto_ton_7": {"amount": 1, "usdt": 0.01, "title": "7 GRAM (TON) (ТЕСТ 0.01$)", "type": "crypto", "coin": "TON", "qty": 7},
-    "prod_crypto_ton_10": {"amount": 1, "usdt": 0.01, "title": "10 GRAM (TON) (ТЕСТ 0.01$)", "type": "crypto", "coin": "TON", "qty": 10},
-    "prod_crypto_usdt_1": {"amount": 1, "usdt": 0.01, "stars": 1, "title": "1 USDT (ТЕСТ 0.01$)", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
-    "prod_crypto_usdt_3": {"amount": 1, "usdt": 0.01, "stars": 1, "title": "3 USDT (ТЕСТ 0.01$)", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
-    "prod_crypto_usdt_5": {"amount": 1, "usdt": 0.01, "stars": 1, "title": "5 USDT (ТЕСТ 0.01$)", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
-    "prod_crypto_usdt_7": {"amount": 1, "usdt": 0.01, "stars": 1, "title": "7 USDT (ТЕСТ 0.01$)", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
-    "prod_crypto_usdt_10": {"amount": 1, "usdt": 0.01, "stars": 1, "title": "10 USDT (ТЕСТ 0.01$)", "type": "crypto_native_stars", "coin": "USDT", "qty": 10},
 }
 
 
@@ -881,7 +857,7 @@ async def start_handler(
       f"🪙 Твой баланс звезд: <b>{balance}</b> ⭐\n"
       f"💎 Реферальная система:\n"
       f"• Приглашай друзей по своей ссылке: <code>{ref_link}</code>\n"
-      f"• Когда твой друг купит товар на сумму от 1 ₽ (ТЕСТ), тебе на баланс автоматически зачислится <b>{REFERRAL_BONUS}</b> ⭐!\n\n"
+      f"• Когда твой друг купит товар на сумму от 300 ₽, тебе на баланс автоматически зачислится <b>{REFERRAL_BONUS}</b> ⭐!\n\n"
       f"⚙️ Оферта, документы и контакты доступны в разделе <b>«⚙️ Прочее»</b>.\n\n"
       f"Выберите нужный раздел в меню ниже 👇"
   )
@@ -1156,7 +1132,7 @@ async def ref_callback(callback: CallbackQuery, state: FSMContext):
   ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
   text = (
       f"<b>👥 РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 1 ₽ (🧪 ТЕСТО ВЫЙ РЕЖИМ).\n\n"
+      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто совершит первую покупку на сумму от 300 ₽.\n\n"
       f"🔗 Ваша реферальная ссылка: <code>{ref_link}</code>\n"
       f"👥 Приглашено друзей: <b>{referrals}</b>\n"
       f"⭐ Доступно на балансе: <b>{balance}</b>"
@@ -1198,7 +1174,7 @@ async def ref_leaderboard_callback(callback: CallbackQuery):
 
   lines.append(f"\n👤 <b>Ваш результат:</b> позиция <b>#{my_rank}</b> (приглашено: <b>{my_count}</b>)")
   lines.append(f"🪙 <b>Ваш баланс звёзд:</b> <b>{get_balance(user_id)}</b> ⭐")
-  lines.append(f"\n<i>Приглашайте друзей по ссылке и получайте по <b>{REFERRAL_BONUS} ⭐</b> за каждую покупку от 1 ₽ (🧪 ТЕСТ)!</i>")
+  lines.append(f"\n<i>Приглашайте друзей по ссылке и получайте по <b>{REFERRAL_BONUS} ⭐</b> за каждую покупку от 300 ₽!</i>")
 
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
@@ -1399,11 +1375,11 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 GRAM — 0.01 USDT (1 ₽) 🧪", callback_data="prod_crypto_ton_1")],
-            [InlineKeyboardButton(text="3 GRAM — 0.01 USDT (1 ₽) 🧪", callback_data="prod_crypto_ton_3")],
-            [InlineKeyboardButton(text="5 GRAM — 0.01 USDT (1 ₽) 🧪", callback_data="prod_crypto_ton_5")],
-            [InlineKeyboardButton(text="7 GRAM — 0.01 USDT (1 ₽) 🧪", callback_data="prod_crypto_ton_7")],
-            [InlineKeyboardButton(text="10 GRAM — 0.01 USDT (1 ₽) 🧪", callback_data="prod_crypto_ton_10")],
+            [InlineKeyboardButton(text="1 GRAM — 1.36 USDT (110 ₽)", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="3 GRAM — 4.09 USDT (330 ₽)", callback_data="prod_crypto_ton_3")],
+            [InlineKeyboardButton(text="5 GRAM — 6.82 USDT (550 ₽)", callback_data="prod_crypto_ton_5")],
+            [InlineKeyboardButton(text="7 GRAM — 9.55 USDT (770 ₽)", callback_data="prod_crypto_ton_7")],
+            [InlineKeyboardButton(text="10 GRAM — 13.64 USDT (1100 ₽)", callback_data="prod_crypto_ton_10")],
             [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -1411,11 +1387,11 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 USDT — 1 звезда ⭐ (0.01 USDT) 🧪", callback_data="prod_crypto_usdt_1")],
-            [InlineKeyboardButton(text="3 USDT — 1 звезда ⭐ (0.01 USDT) 🧪", callback_data="prod_crypto_usdt_3")],
-            [InlineKeyboardButton(text="5 USDT — 1 звезда ⭐ (0.01 USDT) 🧪", callback_data="prod_crypto_usdt_5")],
-            [InlineKeyboardButton(text="7 USDT — 1 звезда ⭐ (0.01 USDT) 🧪", callback_data="prod_crypto_usdt_7")],
-            [InlineKeyboardButton(text="10 USDT — 1 звезда ⭐ (0.01 USDT) 🧪", callback_data="prod_crypto_usdt_10")],
+            [InlineKeyboardButton(text="1 USDT — 78 ⭐ (95 ₽)", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="3 USDT — 234 ⭐ (279 ₽)", callback_data="prod_crypto_usdt_3")],
+            [InlineKeyboardButton(text="5 USDT — 385 ⭐ (455 ₽)", callback_data="prod_crypto_usdt_5")],
+            [InlineKeyboardButton(text="7 USDT — 532 ⭐ (630 ₽)", callback_data="prod_crypto_usdt_7")],
+            [InlineKeyboardButton(text="10 USDT — 750 ⭐ (890 ₽)", callback_data="prod_crypto_usdt_10")],
             [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -1448,11 +1424,11 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 GRAM — 0.01 USDT (1 ₽) 🧪", callback_data="prod_crypto_ton_1")],
-            [InlineKeyboardButton(text="3 GRAM — 0.01 USDT (1 ₽) 🧪", callback_data="prod_crypto_ton_3")],
-            [InlineKeyboardButton(text="5 GRAM — 0.01 USDT (1 ₽) 🧪", callback_data="prod_crypto_ton_5")],
-            [InlineKeyboardButton(text="7 GRAM — 0.01 USDT (1 ₽) 🧪", callback_data="prod_crypto_ton_7")],
-            [InlineKeyboardButton(text="10 GRAM — 0.01 USDT (1 ₽) 🧪", callback_data="prod_crypto_ton_10")],
+            [InlineKeyboardButton(text="1 GRAM — 1.36 USDT (110 ₽)", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="3 GRAM — 4.09 USDT (330 ₽)", callback_data="prod_crypto_ton_3")],
+            [InlineKeyboardButton(text="5 GRAM — 6.82 USDT (550 ₽)", callback_data="prod_crypto_ton_5")],
+            [InlineKeyboardButton(text="7 GRAM — 9.55 USDT (770 ₽)", callback_data="prod_crypto_ton_7")],
+            [InlineKeyboardButton(text="10 GRAM — 13.64 USDT (1100 ₽)", callback_data="prod_crypto_ton_10")],
             [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -1460,11 +1436,11 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 USDT — 1 звезда ⭐ (0.01 USDT) 🧪", callback_data="prod_crypto_usdt_1")],
-            [InlineKeyboardButton(text="3 USDT — 1 звезда ⭐ (0.01 USDT) 🧪", callback_data="prod_crypto_usdt_3")],
-            [InlineKeyboardButton(text="5 USDT — 1 звезда ⭐ (0.01 USDT) 🧪", callback_data="prod_crypto_usdt_5")],
-            [InlineKeyboardButton(text="7 USDT — 1 звезда ⭐ (0.01 USDT) 🧪", callback_data="prod_crypto_usdt_7")],
-            [InlineKeyboardButton(text="10 USDT — 1 звезда ⭐ (0.01 USDT) 🧪", callback_data="prod_crypto_usdt_10")],
+            [InlineKeyboardButton(text="1 USDT — 78 ⭐ (95 ₽)", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="3 USDT — 234 ⭐ (279 ₽)", callback_data="prod_crypto_usdt_3")],
+            [InlineKeyboardButton(text="5 USDT — 385 ⭐ (455 ₽)", callback_data="prod_crypto_usdt_5")],
+            [InlineKeyboardButton(text="7 USDT — 532 ⭐ (630 ₽)", callback_data="prod_crypto_usdt_7")],
+            [InlineKeyboardButton(text="10 USDT — 750 ⭐ (890 ₽)", callback_data="prod_crypto_usdt_10")],
             [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -2112,27 +2088,27 @@ async def show_products(message: Message | CallbackQuery, state: FSMContext):
   if category == "stars":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ 50 звезд — 1 ₽ (0.01 USDT) 🧪", callback_data="prod_stars_50")],
-            [InlineKeyboardButton(text="⭐ 100 звезд — 1 ₽ (0.01 USDT) 🧪", callback_data="prod_stars_100")],
-            [InlineKeyboardButton(text="⭐ 150 звезд — 1 ₽ (0.01 USDT) 🧪", callback_data="prod_stars_150")],
-            [InlineKeyboardButton(text="⭐ 250 звезд — 1 ₽ (0.01 USDT) 🧪", callback_data="prod_stars_250")],
-            [InlineKeyboardButton(text="⭐ 500 звезд — 1 ₽ (0.01 USDT) 🧪", callback_data="prod_stars_500")],
-            [InlineKeyboardButton(text="⭐ 1000 звезд — 1 ₽ (0.01 USDT) 🧪", callback_data="prod_stars_1000")],
-            [InlineKeyboardButton(text="⭐ 2500 звезд — 1 ₽ (0.01 USDT) 🧪", callback_data="prod_stars_2500")],
+            [InlineKeyboardButton(text="⭐ 50 звезд — 78 ₽ (0.89 USDT)", callback_data="prod_stars_50")],
+            [InlineKeyboardButton(text="⭐ 100 звезд — 156 ₽ (1.78 USDT)", callback_data="prod_stars_100")],
+            [InlineKeyboardButton(text="⭐ 150 звезд — 234 ₽ (2.68 USDT)", callback_data="prod_stars_150")],
+            [InlineKeyboardButton(text="⭐ 250 звезд — 390 ₽ (4.47 USDT)", callback_data="prod_stars_250")],
+            [InlineKeyboardButton(text="⭐ 500 звезд — 780 ₽ (8.94 USDT)", callback_data="prod_stars_500")],
+            [InlineKeyboardButton(text="⭐ 1000 звезд — 1560 ₽ (17.89 USDT)", callback_data="prod_stars_1000")],
+            [InlineKeyboardButton(text="⭐ 2500 звезд — 3900 ₽ (44.72 USDT)", callback_data="prod_stars_2500")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
-    text = "<b>⭐ Выберите пакет звезд:</b>\n<i>(🧪 ТЕСТОВЫЙ РЕЖИМ: Все пакеты по 1 ₽ / 0.01 USDT)</i>"
+    text = "<b>⭐ Выберите пакет звезд:</b>"
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 3 месяца — 0.01 USDT 🧪", callback_data="prod_prem_3")],
-            [InlineKeyboardButton(text="💎 6 месяцев — 0.01 USDT 🧪", callback_data="prod_prem_6")],
-            [InlineKeyboardButton(text="💎 12 месяцев — 0.01 USDT 🧪", callback_data="prod_prem_12")],
+            [InlineKeyboardButton(text="💎 3 месяца — 14.22 USDT (1150 ₽)", callback_data="prod_prem_3")],
+            [InlineKeyboardButton(text="💎 6 месяцев — 22.88 USDT (1850 ₽)", callback_data="prod_prem_6")],
+            [InlineKeyboardButton(text="💎 12 месяцев — 40.80 USDT (3300 ₽)", callback_data="prod_prem_12")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
-    text = "<b>💎 Выберите срок подписки TG Premium:</b>\n<i>(🧪 ТЕСТОВЫЙ РЕЖИМ: 0.01 USDT через CryptoBot)</i>"
+    text = "<b>💎 Выберите срок подписки Telegram Premium:</b>"
 
   await state.set_state(BuySteps.choosing_product)
   if isinstance(message, CallbackQuery):
