@@ -942,20 +942,67 @@ async def text_stars(message: Message, state: FSMContext):
   )
 
 
-@rt.message(F.text.in_({"🩷 История заказов", "📦 История заказов", "История заказов"}))
+@rt.message(F.text.in_({"🩷 История заказов", "📦 История заказов", "История заказов", "Мои заказы", "Заказы"}))
+@rt.message(Command("orders"))
 async def text_orders(message: Message, state: FSMContext):
   await state.clear()
+  user_id = message.from_user.id
+  text = (
+      "📦 <b>МОИ ЗАКАЗЫ</b>\n"
+      "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+      "Всего заказов: <b>0</b>\n\n"
+      "🔵 В процессе: <b>0</b>\n"
+      "🟢 Выполненные: <b>0</b>\n"
+      "🔴 Отменённые: <b>0</b>\n"
+      "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+      "Выберите категорию 👇"
+  )
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
-          [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+          [
+              InlineKeyboardButton(text="🔵 В процессе (0)", callback_data="orders_in_progress"),
+              InlineKeyboardButton(text="🟢 Выполненные (0)", callback_data="orders_completed"),
+          ],
+          [InlineKeyboardButton(text="🔴 Отменённые (0)", callback_data="orders_cancelled")],
+          [InlineKeyboardButton(text="✍️ Написать админам", url="https://t.me/bull9bull")],
+          [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")],
       ]
   )
-  await send_section(
-      message,
-      "orders",
-      "<b>📦 История заказов</b>\n\nУ вас пока нет активных или завершенных заказов.",
-      kb,
+  await send_section(message, "orders", text, kb)
+
+
+@rt.callback_query(F.data == "my_orders")
+@rt.callback_query(F.data.in_({"orders_in_progress", "orders_completed", "orders_cancelled"}))
+async def my_orders_callback(callback: CallbackQuery):
+  category = callback.data
+  category_labels = {
+      "orders_in_progress": "🔵 В процессе",
+      "orders_completed": "🟢 Выполненные",
+      "orders_cancelled": "🔴 Отменённые",
+      "my_orders": "📦 Все заказы"
+  }
+  selected_label = category_labels.get(category, "📦 Все заказы")
+  text = (
+      "📦 <b>МОИ ЗАКАЗЫ</b>\n"
+      "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+      f"Категория: <b>{selected_label}</b>\n\n"
+      "<i>В этой категории у вас пока нет заказов.</i>\n"
+      "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
+      "Выберите категорию 👇"
   )
+  kb = InlineKeyboardMarkup(
+      inline_keyboard=[
+          [
+              InlineKeyboardButton(text="🔵 В процессе (0)", callback_data="orders_in_progress"),
+              InlineKeyboardButton(text="🟢 Выполненные (0)", callback_data="orders_completed"),
+          ],
+          [InlineKeyboardButton(text="🔴 Отменённые (0)", callback_data="orders_cancelled")],
+          [InlineKeyboardButton(text="✍️ Написать админам", url="https://t.me/bull9bull")],
+          [InlineKeyboardButton(text="◀️ Назад в меню", callback_data="back_to_menu")],
+      ]
+  )
+  await safe_edit(callback, text, kb)
+  await callback.answer()
 
 
 @rt.message(F.text.in_({"🩷 Профиль", "👤 Профиль", "Профиль"}))
