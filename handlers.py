@@ -881,7 +881,7 @@ async def start_handler(
       f"🪙 Твой баланс звезд: <b>{balance}</b> ⭐\n"
       f"💎 Реферальная система:\n"
       f"• Приглашай друзей по своей ссылке: <code>{ref_link}</code>\n"
-      f"• Когда твой друг купит товар на сумму от 300 ₽, тебе на баланс автоматически зачислится <b>{REFERRAL_BONUS}</b> ⭐!\n\n"
+      f"• Когда твой друг купит товар на сумму от 1 ₽ (ТЕСТ), тебе на баланс автоматически зачислится <b>{REFERRAL_BONUS}</b> ⭐!\n\n"
       f"⚙️ Оферта, документы и контакты доступны в разделе <b>«⚙️ Прочее»</b>.\n\n"
       f"Выберите нужный раздел в меню ниже 👇"
   )
@@ -1014,7 +1014,7 @@ async def text_ref(message: Message, state: FSMContext):
   ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
   text = (
       f"<b>👥 РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 300 ₽.\n\n"
+      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 1 ₽ (🧪 ТЕСТО ВЫЙ РЕЖИМ).\n\n"
       f"🔗 Ваша реферальная ссылка: <code>{ref_link}</code>\n"
       f"👥 Приглашено друзей: <b>{referrals}</b>\n"
       f"⭐ Доступно на балансе: <b>{balance}</b>"
@@ -1155,7 +1155,7 @@ async def ref_callback(callback: CallbackQuery, state: FSMContext):
   ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
   text = (
       f"<b>👥 РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 300 ₽.\n\n"
+      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 1 ₽ (🧪 ТЕСТО ВЫЙ РЕЖИМ).\n\n"
       f"🔗 Ваша реферальная ссылка: <code>{ref_link}</code>\n"
       f"👥 Приглашено друзей: <b>{referrals}</b>\n"
       f"⭐ Доступно на балансе: <b>{balance}</b>"
@@ -1196,7 +1196,7 @@ async def ref_leaderboard_callback(callback: CallbackQuery):
 
   lines.append(f"\n👤 <b>Ваш результат:</b> позиция <b>#{my_rank}</b> (приглашено: <b>{my_count}</b>)")
   lines.append(f"🪙 <b>Ваш баланс звёзд:</b> <b>{get_balance(user_id)}</b> ⭐")
-  lines.append(f"\n<i>Приглашайте друзей по ссылке и получайте по <b>{REFERRAL_BONUS} ⭐</b> за каждую покупку от 300 ₽!</i>")
+  lines.append(f"\n<i>Приглашайте друзей по ссылке и получайте по <b>{REFERRAL_BONUS} ⭐</b> за каждую покупку от 1 ₽ (🧪 ТЕСТ)!</i>")
 
   kb = InlineKeyboardMarkup(
       inline_keyboard=[
@@ -1778,7 +1778,7 @@ async def check_crypto_payment(callback: CallbackQuery):
             await callback.bot.send_message(
                 referrer_id,
                 f"🎉 <b>Реферальный бонус!</b>\n\n"
-                f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
+                f"Ваш приглашенный друг совершил покупку на сумму от 1 ₽ (🧪 ТЕСТ)!\n"
                 f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
                 parse_mode="HTML",
             )
