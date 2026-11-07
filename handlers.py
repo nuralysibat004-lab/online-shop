@@ -40,7 +40,7 @@ TEST_BALANCE = 999
 MIN_WITHDRAW = 50
 REFERRAL_BONUS = 50
 REFERRAL_MIN_STARS = 350
-REFERRAL_MIN_AMOUNT = 300  # Бонус начисляется при покупке от 300 ₽
+REFERRAL_MIN_AMOUNT = 1  # 🧪 ТЕСТОВЫЙ РЕЖИМ: Бонус 50 звезд начисляется при покупке от 1 ₽
 
 ADMIN_IDS = [int(x.strip()) for x in ALLOWED_ADMIN_IDS.split(",") if x.strip().isdigit()]
 ADMIN_ID = 7461353872
@@ -172,8 +172,8 @@ class BuyCryptoSteps(StatesGroup):
   entering_custom_amount = State()
 
 
-# БОЕВЫЕ ЦЕНЫ МАГАЗИНА GUMSTARS
-PRICES = {
+# БОЕВЫЕ ЦЕНЫ (СОХРАНЕНЫ ДЛЯ БЫСТРОГО ВОЗВРАТА)
+REAL_PRICES = {
     "prod_stars_50": {"amount": 78, "usdt": 0.89, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
     "prod_stars_100": {"amount": 156, "usdt": 1.78, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
     "prod_stars_150": {"amount": 234, "usdt": 2.68, "title": "150 Telegram Stars", "type": "stars", "quantity": 150},
@@ -194,6 +194,30 @@ PRICES = {
     "prod_crypto_usdt_5": {"amount": 455, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
     "prod_crypto_usdt_7": {"amount": 630, "usdt": 7, "stars": 532, "title": "7 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
     "prod_crypto_usdt_10": {"amount": 890, "usdt": 10, "stars": 750, "title": "10 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 10},
+}
+
+# 🧪 ТЕСТОВЫЙ ПРАЙС-ЛИСТ (ВСЁ ПО 1 ₽ / 0.01 USDT ДЛЯ БЕЗОПАСНОЙ ПРОВЕРКИ)
+PRICES = {
+    "prod_stars_50": {"amount": 1, "usdt": 0.01, "title": "50 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 50},
+    "prod_stars_100": {"amount": 1, "usdt": 0.01, "title": "100 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 100},
+    "prod_stars_150": {"amount": 1, "usdt": 0.01, "title": "150 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 150},
+    "prod_stars_250": {"amount": 1, "usdt": 0.01, "title": "250 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 250},
+    "prod_stars_500": {"amount": 1, "usdt": 0.01, "title": "500 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 500},
+    "prod_stars_1000": {"amount": 1, "usdt": 0.01, "title": "1000 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 1000},
+    "prod_stars_2500": {"amount": 1, "usdt": 0.01, "title": "2500 Telegram Stars (ТЕСТ 0.01$)", "type": "stars", "quantity": 2500},
+    "prod_prem_3": {"amount": 1, "usdt": 0.01, "title": "Telegram Premium 3 мес (ТЕСТ 0.01$)", "type": "premium", "months": 3},
+    "prod_prem_6": {"amount": 1, "usdt": 0.01, "title": "Telegram Premium 6 мес (ТЕСТ 0.01$)", "type": "premium", "months": 6},
+    "prod_prem_12": {"amount": 1, "usdt": 0.01, "title": "Telegram Premium 12 мес (ТЕСТ 0.01$)", "type": "premium", "months": 12},
+    "prod_crypto_ton_1": {"amount": 1, "usdt": 0.01, "title": "1 GRAM (TON) (ТЕСТ 0.01$)", "type": "crypto", "coin": "TON", "qty": 1},
+    "prod_crypto_ton_3": {"amount": 1, "usdt": 0.01, "title": "3 GRAM (TON) (ТЕСТ 0.01$)", "type": "crypto", "coin": "TON", "qty": 3},
+    "prod_crypto_ton_5": {"amount": 1, "usdt": 0.01, "title": "5 GRAM (TON) (ТЕСТ 0.01$)", "type": "crypto", "coin": "TON", "qty": 5},
+    "prod_crypto_ton_7": {"amount": 1, "usdt": 0.01, "title": "7 GRAM (TON) (ТЕСТ 0.01$)", "type": "crypto", "coin": "TON", "qty": 7},
+    "prod_crypto_ton_10": {"amount": 1, "usdt": 0.01, "title": "10 GRAM (TON) (ТЕСТ 0.01$)", "type": "crypto", "coin": "TON", "qty": 10},
+    "prod_crypto_usdt_1": {"amount": 1, "usdt": 0.01, "stars": 1, "title": "1 USDT (ТЕСТ 0.01$)", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
+    "prod_crypto_usdt_3": {"amount": 1, "usdt": 0.01, "stars": 1, "title": "3 USDT (ТЕСТ 0.01$)", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
+    "prod_crypto_usdt_5": {"amount": 1, "usdt": 0.01, "stars": 1, "title": "5 USDT (ТЕСТ 0.01$)", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
+    "prod_crypto_usdt_7": {"amount": 1, "usdt": 0.01, "stars": 1, "title": "7 USDT (ТЕСТ 0.01$)", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
+    "prod_crypto_usdt_10": {"amount": 1, "usdt": 0.01, "stars": 1, "title": "10 USDT (ТЕСТ 0.01$)", "type": "crypto_native_stars", "coin": "USDT", "qty": 10},
 }
 
 
@@ -1668,23 +1692,25 @@ async def check_crypto_payment(callback: CallbackQuery):
         )
 
       # 3. Криптовалюта (GRAM / TON / USDT)
-      else:
-        target_asset = product_info.get("coin", "TON")
+        raw_coin = product_info.get("coin", "TON")
+        target_asset = "TON" if raw_coin in ("TON", "GRAM") else raw_coin
         target_qty = product_info.get("qty", 1)
 
         # Пытаемся автоматически выдать чек через CryptoBot
         check_url = None
-        for try_asset in [target_asset, "TON", "GRAM", "USDT"]:
+        last_check_err = None
+        # Сначала пробуем выдать именной чек (pin_to_user_id), если не получается — обычный чек
+        for pin_id in [buyer.id, None]:
           try:
-            chk = await cryptopay.create_check(
-                asset=try_asset,
-                amount=target_qty,
-                pin_to_user_id=buyer.id,
-            )
+            kwargs = {"asset": target_asset, "amount": target_qty}
+            if pin_id:
+              kwargs["pin_to_user_id"] = pin_id
+            chk = await cryptopay.create_check(**kwargs)
             check_url = chk.bot_check_url
             break
           except Exception as e:
-            logger.warning(f"Не удалось выдать чек с ассетом {try_asset}: {e}")
+            last_check_err = str(e)
+            logger.warning(f"Ошибка создания чека ({target_asset}, pin={pin_id}): {e}")
 
         if check_url:
           kb = InlineKeyboardMarkup(
@@ -1725,7 +1751,8 @@ async def check_crypto_payment(callback: CallbackQuery):
               f"<b>🎯 Получатель:</b> <code>{address}</code>\n"
               f"<b>💰 Оплачено:</b> <b>{product_info['amount']} ₽</b> ({invoice.amount} {invoice.asset})\n"
               f"<b>🆔 Инвойс CryptoBot:</b> <code>#{invoice.invoice_id}</code>\n"
-              "⚠️ <i>Не удалось создать чек автоматически. Проверьте баланс приложения в @CryptoPay и выдайте чек клиенту вручную!</i>"
+              f"⚠️ <b>Причина ошибки авто-чека:</b> <code>{last_check_err}</code>\n"
+              "👉 <i>Проверьте баланс приложения в @CryptoBot (Crypto Pay -> My Apps -> Баланс) и включены ли Checks в Security!</i>"
           )
 
       # Уведомление администратора
@@ -2123,21 +2150,21 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
       )
     # 3. Криптовалюта
     else:
-      target_asset = product_info.get("coin", "TON")
+      raw_coin = product_info.get("coin", "TON")
+      target_asset = "TON" if raw_coin in ("TON", "GRAM") else raw_coin
       target_qty = product_info.get("qty", 1)
 
       check_url = None
-      for try_asset in [target_asset, "TON", "GRAM", "USDT"]:
+      for pin_id in [buyer.id, None]:
         try:
-          chk = await cryptopay.create_check(
-              asset=try_asset,
-              amount=target_qty,
-              pin_to_user_id=buyer.id,
-          )
+          kwargs = {"asset": target_asset, "amount": target_qty}
+          if pin_id:
+            kwargs["pin_to_user_id"] = pin_id
+          chk = await cryptopay.create_check(**kwargs)
           check_url = chk.bot_check_url
           break
         except Exception as e:
-          logger.warning(f"Не удалось выдать чек СБП с ассетом {try_asset}: {e}")
+          logger.warning(f"Не удалось выдать чек СБП с ассетом {target_asset} (pin={pin_id}): {e}")
 
       if check_url:
         kb = InlineKeyboardMarkup(
