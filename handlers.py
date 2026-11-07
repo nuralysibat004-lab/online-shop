@@ -1266,33 +1266,54 @@ async def profile_callback(callback: CallbackQuery, state: FSMContext):
 
 
 async def deliver_stars_via_fragment(recipient: str, quantity: int) -> dict:
-    """Автоматическая покупка и отправка звезд через Fragment API (v1 partner)"""
+    """Автоматическая покупка и отправка звезд через API поставщика"""
     if not FRAGMENT_API_KEY:
         logger.warning("FRAGMENT_API_KEY не задан в переменных окружения!")
-        return {"ok": False, "error": "No API key"}
+        return {"ok": False, "error": "No API key configured in Render env"}
 
-    url = f"{FRAGMENT_API_URL}/orders/star"
-    headers = {
-        "API-Key": FRAGMENT_API_KEY,
-        "Idempotency-Key": str(uuid.uuid4()),
-        "Content-Type": "application/json"
-    }
-    payload = {
-        "recipient": recipient.lstrip("@"),
-        "quantity": quantity,
-        "wallet_type": "TON"
-    }
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, headers=headers, json=payload, timeout=25) as resp:
-                data = await resp.json()
-                if resp.status in (200, 201) and (data.get("ok") is not False) and not data.get("error"):
-                    return {"ok": True, "data": data}
-                logger.error(f"Fragment API order error ({resp.status}): {data}")
-                return {"ok": False, "error": data.get("message") or data.get("error") or str(data)}
-    except Exception as e:
-        logger.error(f"Fragment API connection error: {e}")
-        return {"ok": False, "error": str(e)}
+    clean_username = recipient.lstrip("@").strip()
+    base_url = FRAGMENT_API_URL.rstrip("/")
+    
+    # Подготавливаем возможные адреса API в зависимости от поставщика
+    endpoints = [
+        f"{base_url}/orders/star",
+        f"{base_url}/stars/buy",
+        f"{base_url}/v1/stars/buy",
+    ]
+
+    headers_options = [
+        {"API-Key": FRAGMENT_API_KEY, "Content-Type": "application/json", "Idempotency-Key": str(uuid.uuid4())},
+        {"X-API-Key": FRAGMENT_API_KEY, "Content-Type": "application/json"},
+        {"Authorization": f"Bearer {FRAGMENT_API_KEY}", "Content-Type": "application/json"},
+    ]
+
+    payloads = [
+        {"recipient": clean_username, "quantity": quantity, "wallet_type": "TON"},
+        {"username": clean_username, "amount": quantity},
+        {"username": clean_username, "quantity": quantity},
+    ]
+
+    last_err = "No response from API"
+    async with aiohttp.ClientSession() as session:
+        for url in endpoints:
+            for headers in headers_options:
+                for payload in payloads:
+                    try:
+                        async with session.post(url, headers=headers, json=payload, timeout=12) as resp:
+                            ct = resp.headers.get("Content-Type", "")
+                            if "application/json" in ct:
+                                data = await resp.json()
+                                if resp.status in (200, 201) and (data.get("ok") is not False) and not data.get("error"):
+                                    return {"ok": True, "data": data}
+                                last_err = f"API ({resp.status}): {data.get('message') or data.get('error') or str(data)}"
+                            else:
+                                raw_text = await resp.text()
+                                last_err = f"HTTP {resp.status} ({ct}): {raw_text[:120]}"
+                    except Exception as e:
+                        last_err = str(e)
+
+    logger.error(f"Deliver stars failed: {last_err}")
+    return {"ok": False, "error": last_err}
 
 
 @rt.callback_query(F.data.startswith("crypto_coin_"))
