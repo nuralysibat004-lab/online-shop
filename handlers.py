@@ -1639,12 +1639,12 @@ async def check_crypto_payment(callback: CallbackQuery):
     return
 
   try:
-    invoices = await cryptopay.get_invoices(invoice_ids=invoice_id)
-    if not invoices:
+    res = await cryptopay.get_invoices(invoice_ids=invoice_id)
+    if not res:
       await callback.answer("❌ Счет не найден в системе.", show_alert=True)
       return
 
-    invoice = invoices[0]
+    invoice = res[0] if isinstance(res, list) else res
 
     if invoice.status == "paid":
       payload = invoice.payload or ""
@@ -1793,27 +1793,31 @@ async def check_crypto_payment(callback: CallbackQuery):
       except Exception as e:
         logger.error(f"Не удалось отправить уведомление админу: {e}")
 
-      # Реферальный бонус (при покупке от 300 руб, временно от 1 руб для теста)
+      # Реферальный бонус
       try:
-        if product_info.get("amount", 0) >= REFERRAL_MIN_AMOUNT:
-          user_id = buyer.id
-          user_record = bot_db.get_user(user_id)
-          if user_record and len(user_record) > 1 and user_record[1]:
-            referrer_id = user_record[1]
-            ref_current_balance = (
-                bot_db.get_user(referrer_id)[0]
-                if bot_db.get_user(referrer_id)
-                else 0
-            )
+        user_id = buyer.id
+        user_record = bot_db.get_user(user_id)
+        logger.info(f"Проверка реферального бонуса для buyer={user_id}, record={user_record}, min_amount={REFERRAL_MIN_AMOUNT}, prod_amount={product_info.get('amount')}")
+        
+        if user_record and len(user_record) > 1 and user_record[1]:
+          referrer_id = int(user_record[1])
+          if not bot_db.has_received_bonus_for(user_id):
+            ref_user = bot_db.get_user(referrer_id)
+            ref_current_balance = ref_user[0] if ref_user else 0
             new_ref_balance = ref_current_balance + REFERRAL_BONUS
             bot_db.update_balance(referrer_id, new_ref_balance)
-            await callback.bot.send_message(
-                referrer_id,
-                f"🎉 <b>Реферальный бонус!</b>\n\n"
-                f"Ваш приглашенный друг совершил покупку на сумму от 1 ₽ (🧪 ТЕСТ)!\n"
-                f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
-                parse_mode="HTML",
-            )
+            bot_db.mark_bonus_received(user_id)
+            logger.info(f"Реферальный бонус {REFERRAL_BONUS} звезд начислен referrer={referrer_id} за покупку user={user_id}")
+            try:
+              await callback.bot.send_message(
+                  referrer_id,
+                  f"🎉 <b>Реферальный бонус!</b>\n\n"
+                  f"Ваш приглашенный друг совершил покупку на сумму от 1 ₽ (🧪 ТЕСТ)!\n"
+                  f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
+                  parse_mode="HTML",
+              )
+            except Exception as send_err:
+              logger.error(f"Не удалось отправить уведомление рефереру {referrer_id}: {send_err}")
       except Exception as e:
         logger.error(f"Ошибка начисления реферального бонуса: {e}")
 
