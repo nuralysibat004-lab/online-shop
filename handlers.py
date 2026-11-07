@@ -1274,9 +1274,11 @@ async def deliver_stars_via_fragment(recipient: str, quantity: int) -> dict:
     clean_username = recipient.lstrip("@").strip()
     base_url = FRAGMENT_API_URL.rstrip("/")
     
-    # Подготавливаем возможные адреса API в зависимости от поставщика
+    # Подготавливаем возможные адреса API в зависимости от поставщика (Fragment-API, Gramix и т.д.)
     endpoints = [
         f"{base_url}/orders/star",
+        "https://api.gramix.io/api/v1/orders/star",
+        "https://api.gramix.io/api/v1/stars/buy",
         f"{base_url}/stars/buy",
         f"{base_url}/v1/stars/buy",
     ]
@@ -1288,6 +1290,9 @@ async def deliver_stars_via_fragment(recipient: str, quantity: int) -> dict:
     ]
 
     payloads = [
+        {"username": clean_username, "count": quantity},
+        {"username": clean_username, "amount": quantity, "currency": "GRAM"},
+        {"recipient": clean_username, "quantity": quantity, "wallet_type": "GRAM"},
         {"recipient": clean_username, "quantity": quantity, "wallet_type": "TON"},
         {"username": clean_username, "amount": quantity},
         {"username": clean_username, "quantity": quantity},
