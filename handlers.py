@@ -1266,59 +1266,124 @@ async def profile_callback(callback: CallbackQuery, state: FSMContext):
 
 
 async def deliver_stars_via_fragment(recipient: str, quantity: int) -> dict:
-    """Автоматическая покупка и отправка звезд через API поставщика"""
-    if not FRAGMENT_API_KEY:
-        logger.warning("FRAGMENT_API_KEY не задан в переменных окружения!")
-        return {"ok": False, "error": "No API key configured in Render env"}
+    """Автоматическая покупка и отправка звезд через Gramix API v1 (или Fragment API fallback)"""
+    api_key = os.getenv("GRAMIX_API_KEY") or FRAGMENT_API_KEY or os.getenv("FRAGMENT_API_KEY", "")
+    if not api_key:
+        logger.warning("GRAMIX_API_KEY / FRAGMENT_API_KEY не задан в переменных окружения Render!")
+        return {"ok": False, "error": "API Key не настроен в Render (установите GRAMIX_API_KEY)"}
 
     clean_username = recipient.lstrip("@").strip()
+    idempotency_key = f"stars_{uuid.uuid4().hex[:20]}"
+
+    # 1. Сначала делаем официальный запрос в Gramix API v1 (/api/v1/purchase/stars)
+    gramix_url = "https://api.gramix.io/api/v1/purchase/stars"
+    headers = {
+        "x-api-key": api_key,
+        "idempotency-key": idempotency_key,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+    # Пробуем списать сначала с баланса 'gram' (поскольку у пользователя 3.0 GRAM), а затем с 'usdt'
+    for currency in ["gram", "usdt"]:
+        payload = {
+            "recipientName": clean_username,
+            "paymentCurrency": currency,
+            "stars": int(quantity),
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(gramix_url, headers=headers, json=payload, timeout=15) as resp:
+                    ct = resp.headers.get("Content-Type", "")
+                    if "application/json" in ct:
+                        data = await resp.json()
+                        status_code = data.get("statusCode", resp.status)
+                        if resp.status in (200, 201) and status_code in (200, 201):
+                            logger.info(f"Gramix API SUCCESS ({currency}): {data}")
+                            return {"ok": True, "provider": "Gramix", "data": data}
+                        err_msg = data.get("message") or str(data)
+                        logger.warning(f"Gramix API ({currency}) error {status_code}: {err_msg}")
+                        # Если ошибка не связана с балансом, не пробуем дальше, а сообщаем об ошибке
+                        if "balance" not in err_msg.lower() and resp.status == 401:
+                            return {"ok": False, "error": f"Gramix API 401 Unauthorized: Проверьте GRAMIX_API_KEY"}
+                    else:
+                        raw_text = await resp.text()
+                        logger.warning(f"Gramix API ({currency}) raw response: {raw_text[:120]}")
+        except Exception as e:
+            logger.error(f"Gramix API connection error ({currency}): {e}")
+
+    # 2. Фолбэк на партнерский Fragment API
     base_url = FRAGMENT_API_URL.rstrip("/")
-    
-    # Подготавливаем возможные адреса API в зависимости от поставщика (Fragment-API, Gramix и т.д.)
-    endpoints = [
+    fallback_endpoints = [
         f"{base_url}/orders/star",
-        "https://api.gramix.io/api/v1/orders/star",
-        "https://api.gramix.io/api/v1/stars/buy",
         f"{base_url}/stars/buy",
-        f"{base_url}/v1/stars/buy",
     ]
-
     headers_options = [
-        {"API-Key": FRAGMENT_API_KEY, "Content-Type": "application/json", "Idempotency-Key": str(uuid.uuid4())},
-        {"X-API-Key": FRAGMENT_API_KEY, "Content-Type": "application/json"},
-        {"Authorization": f"Bearer {FRAGMENT_API_KEY}", "Content-Type": "application/json"},
+        {"API-Key": api_key, "Content-Type": "application/json", "Idempotency-Key": str(uuid.uuid4())},
+        {"Authorization": f"Bearer {api_key}", "Content-Type": "application/json"},
     ]
-
     payloads = [
         {"username": clean_username, "count": quantity},
         {"username": clean_username, "amount": quantity, "currency": "GRAM"},
-        {"recipient": clean_username, "quantity": quantity, "wallet_type": "GRAM"},
-        {"recipient": clean_username, "quantity": quantity, "wallet_type": "TON"},
-        {"username": clean_username, "amount": quantity},
-        {"username": clean_username, "quantity": quantity},
     ]
 
-    last_err = "No response from API"
+    last_err = "No response from Gramix / Fragment API"
     async with aiohttp.ClientSession() as session:
-        for url in endpoints:
-            for headers in headers_options:
-                for payload in payloads:
+        for url in fallback_endpoints:
+            for h in headers_options:
+                for p in payloads:
                     try:
-                        async with session.post(url, headers=headers, json=payload, timeout=12) as resp:
-                            ct = resp.headers.get("Content-Type", "")
-                            if "application/json" in ct:
+                        async with session.post(url, headers=h, json=p, timeout=10) as resp:
+                            if "application/json" in resp.headers.get("Content-Type", ""):
                                 data = await resp.json()
-                                if resp.status in (200, 201) and (data.get("ok") is not False) and not data.get("error"):
-                                    return {"ok": True, "data": data}
-                                last_err = f"API ({resp.status}): {data.get('message') or data.get('error') or str(data)}"
-                            else:
-                                raw_text = await resp.text()
-                                last_err = f"HTTP {resp.status} ({ct}): {raw_text[:120]}"
+                                if resp.status in (200, 201) and data.get("ok") is not False:
+                                    return {"ok": True, "provider": "Fragment", "data": data}
+                                last_err = f"Fragment ({resp.status}): {data.get('message') or str(data)}"
                     except Exception as e:
                         last_err = str(e)
 
-    logger.error(f"Deliver stars failed: {last_err}")
+    logger.error(f"Deliver stars failed all options: {last_err}")
     return {"ok": False, "error": last_err}
+
+
+async def deliver_premium_via_gramix(recipient: str, duration_months: int) -> dict:
+    """Автоматическая покупка и активация Telegram Premium через Gramix API v1"""
+    api_key = os.getenv("GRAMIX_API_KEY") or FRAGMENT_API_KEY or os.getenv("FRAGMENT_API_KEY", "")
+    if not api_key:
+        return {"ok": False, "error": "API Key не настроен в Render (GRAMIX_API_KEY)"}
+
+    clean_username = recipient.lstrip("@").strip()
+    duration = duration_months if duration_months in (3, 6, 12) else 3
+    gramix_url = f"https://api.gramix.io/api/v1/purchase/premium/{duration}"
+    idempotency_key = f"prem_{duration}_{uuid.uuid4().hex[:18]}"
+
+    headers = {
+        "x-api-key": api_key,
+        "idempotency-key": idempotency_key,
+        "Content-Type": "application/json",
+        "Accept": "application/json",
+    }
+
+    for currency in ["gram", "usdt"]:
+        payload = {
+            "recipientName": clean_username,
+            "paymentCurrency": currency,
+        }
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.post(gramix_url, headers=headers, json=payload, timeout=15) as resp:
+                    if "application/json" in resp.headers.get("Content-Type", ""):
+                        data = await resp.json()
+                        status_code = data.get("statusCode", resp.status)
+                        if resp.status in (200, 201) and status_code in (200, 201):
+                            logger.info(f"Gramix Premium SUCCESS ({currency}): {data}")
+                            return {"ok": True, "provider": "Gramix", "data": data}
+                        err_msg = data.get("message") or str(data)
+                        logger.warning(f"Gramix Premium error ({currency}): {err_msg}")
+        except Exception as e:
+            logger.error(f"Gramix Premium connection error ({currency}): {e}")
+
+    return {"ok": False, "error": "Не удалось автоматически выдать Telegram Premium через Gramix API"}
 
 
 @rt.callback_query(F.data.startswith("crypto_coin_"))
