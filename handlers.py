@@ -184,11 +184,11 @@ PRICES = {
     "prod_prem_3": {"amount": 1150, "usdt": 14.22, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
     "prod_prem_6": {"amount": 1850, "usdt": 22.88, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
     "prod_prem_12": {"amount": 3300, "usdt": 40.80, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
-    "prod_crypto_ton_1": {"amount": 110, "usdt": 1.36, "title": "1 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 1},
-    "prod_crypto_ton_3": {"amount": 330, "usdt": 4.09, "title": "3 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 3},
-    "prod_crypto_ton_5": {"amount": 550, "usdt": 6.82, "title": "5 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 5},
-    "prod_crypto_ton_7": {"amount": 770, "usdt": 9.55, "title": "7 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 7},
-    "prod_crypto_ton_10": {"amount": 1100, "usdt": 13.64, "title": "10 GRAM (TON)", "type": "crypto", "coin": "TON", "qty": 10},
+    "prod_crypto_ton_1": {"amount": 110, "usdt": 1.36, "title": "1 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 1},
+    "prod_crypto_ton_3": {"amount": 330, "usdt": 4.09, "title": "3 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 3},
+    "prod_crypto_ton_5": {"amount": 550, "usdt": 6.82, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
+    "prod_crypto_ton_7": {"amount": 770, "usdt": 9.55, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
+    "prod_crypto_ton_10": {"amount": 1100, "usdt": 13.64, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
     "prod_crypto_usdt_1": {"amount": 95, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
     "prod_crypto_usdt_3": {"amount": 279, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
     "prod_crypto_usdt_5": {"amount": 455, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
@@ -990,7 +990,7 @@ async def text_ref(message: Message, state: FSMContext):
   ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
   text = (
       f"<b>👥 РЕФЕРАЛЬНАЯ СИСТЕМА</b>\n\n"
-      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто купит товар на сумму от 1 ₽ (🧪 ТЕСТО ВЫЙ РЕЖИМ).\n\n"
+      f"Приглашай друзей и получай <b>{REFERRAL_BONUS}</b> ⭐ за каждого, кто совершит первую покупку на сумму от 300 ₽.\n\n"
       f"🔗 Ваша реферальная ссылка: <code>{ref_link}</code>\n"
       f"👥 Приглашено друзей: <b>{referrals}</b>\n"
       f"⭐ Доступно на балансе: <b>{balance}</b>"
@@ -1673,7 +1673,7 @@ async def successful_payment_handler(message: Message):
           await message.bot.send_message(
               referrer_id,
               f"🎉 <b>Реферальный бонус!</b>\n\n"
-              f"Ваш приглашенный друг совершил покупку на сумму от 1 ₽!\n"
+              f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
               f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
               parse_mode="HTML",
           )
@@ -1803,25 +1803,29 @@ async def check_crypto_payment(callback: CallbackQuery):
 
       # 3. Криптовалюта (GRAM / TON / USDT)
       else:
-        raw_coin = product_info.get("coin", "TON")
-        target_asset = "TON" if raw_coin in ("TON", "GRAM") else raw_coin
+        raw_coin = product_info.get("coin", "GRAM")
         target_qty = product_info.get("qty", 1)
+        target_asset = raw_coin
 
         # Пытаемся автоматически выдать чек через CryptoBot
         check_url = None
         last_check_err = None
-        # Сначала пробуем выдать именной чек (pin_to_user_id), если не получается — обычный чек
-        for pin_id in [buyer.id, None]:
-          try:
-            kwargs = {"asset": target_asset, "amount": target_qty}
-            if pin_id:
-              kwargs["pin_to_user_id"] = pin_id
-            chk = await cryptopay.create_check(**kwargs)
-            check_url = chk.bot_check_url
+        target_assets = [raw_coin] if raw_coin not in ("GRAM", "TON") else ["GRAM", "TON"]
+        for asset_try in target_assets:
+          for pin_id in [buyer.id, None]:
+            try:
+              kwargs = {"asset": asset_try, "amount": target_qty}
+              if pin_id:
+                kwargs["pin_to_user_id"] = pin_id
+              chk = await cryptopay.create_check(**kwargs)
+              check_url = chk.bot_check_url
+              target_asset = asset_try
+              break
+            except Exception as e:
+              last_check_err = str(e)
+              logger.warning(f"Ошибка создания чека ({asset_try}, pin={pin_id}): {e}")
+          if check_url:
             break
-          except Exception as e:
-            last_check_err = str(e)
-            logger.warning(f"Ошибка создания чека ({target_asset}, pin={pin_id}): {e}")
 
         if check_url:
           kb = InlineKeyboardMarkup(
@@ -1891,7 +1895,7 @@ async def check_crypto_payment(callback: CallbackQuery):
               await callback.bot.send_message(
                   referrer_id,
                   f"🎉 <b>Реферальный бонус!</b>\n\n"
-                  f"Ваш приглашенный друг совершил покупку на сумму от 1 ₽ (🧪 ТЕСТ)!\n"
+                  f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
                   f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
                   parse_mode="HTML",
               )
@@ -2327,7 +2331,7 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
         extra=f"Получатель: {target_user} | Инвойс: #{invoice_id}",
     )
 
-    # Реферальный бонус (при покупке от 300 руб, временно от 1 руб для теста)
+    # Реферальный бонус (при покупке от 300 руб)
     try:
       if rub_price >= REFERRAL_MIN_AMOUNT:
         user_id = buyer.id
