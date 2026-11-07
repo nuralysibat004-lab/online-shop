@@ -1272,7 +1272,8 @@ async def deliver_stars_via_fragment(recipient: str, quantity: int) -> dict:
         logger.warning("GRAMIX_API_KEY / FRAGMENT_API_KEY не задан в переменных окружения Render!")
         return {"ok": False, "error": "API Key не настроен в Render (установите GRAMIX_API_KEY)"}
 
-    clean_username = recipient.lstrip("@").strip()
+    # Gramix API требует СТРОГО lowercase без @ (например: 'co1ax07', а не 'Co1ax07')!
+    clean_username = recipient.lstrip("@").strip().lower()
     idempotency_key = f"stars_{uuid.uuid4().hex[:20]}"
 
     # 1. Сначала делаем официальный запрос в Gramix API v1 (/api/v1/purchase/stars)
@@ -1284,6 +1285,7 @@ async def deliver_stars_via_fragment(recipient: str, quantity: int) -> dict:
         "Accept": "application/json",
     }
 
+    last_err = "No response from Gramix API"
     # Пробуем списать сначала с баланса 'gram' (поскольку у пользователя 3.0 GRAM), а затем с 'usdt'
     for currency in ["gram", "usdt"]:
         payload = {
@@ -1302,14 +1304,17 @@ async def deliver_stars_via_fragment(recipient: str, quantity: int) -> dict:
                             logger.info(f"Gramix API SUCCESS ({currency}): {data}")
                             return {"ok": True, "provider": "Gramix", "data": data}
                         err_msg = data.get("message") or str(data)
+                        last_err = f"Gramix ({status_code}): {err_msg}"
                         logger.warning(f"Gramix API ({currency}) error {status_code}: {err_msg}")
-                        # Если ошибка не связана с балансом, не пробуем дальше, а сообщаем об ошибке
-                        if "balance" not in err_msg.lower() and resp.status == 401:
-                            return {"ok": False, "error": f"Gramix API 401 Unauthorized: Проверьте GRAMIX_API_KEY"}
+                        # Если 400 (Bad Request: неверный ник) или 401 (Unauthorized), сразу возвращаем понятную ошибку
+                        if resp.status in (400, 401, 422):
+                            return {"ok": False, "error": last_err}
                     else:
                         raw_text = await resp.text()
+                        last_err = f"Gramix HTTP {resp.status}: {raw_text[:120]}"
                         logger.warning(f"Gramix API ({currency}) raw response: {raw_text[:120]}")
         except Exception as e:
+            last_err = f"Gramix connection error: {e}"
             logger.error(f"Gramix API connection error ({currency}): {e}")
 
     # 2. Фолбэк на партнерский Fragment API
@@ -1327,7 +1332,6 @@ async def deliver_stars_via_fragment(recipient: str, quantity: int) -> dict:
         {"username": clean_username, "amount": quantity, "currency": "GRAM"},
     ]
 
-    last_err = "No response from Gramix / Fragment API"
     async with aiohttp.ClientSession() as session:
         for url in fallback_endpoints:
             for h in headers_options:
@@ -1338,9 +1342,8 @@ async def deliver_stars_via_fragment(recipient: str, quantity: int) -> dict:
                                 data = await resp.json()
                                 if resp.status in (200, 201) and data.get("ok") is not False:
                                     return {"ok": True, "provider": "Fragment", "data": data}
-                                last_err = f"Fragment ({resp.status}): {data.get('message') or str(data)}"
-                    except Exception as e:
-                        last_err = str(e)
+                    except Exception:
+                        pass
 
     logger.error(f"Deliver stars failed all options: {last_err}")
     return {"ok": False, "error": last_err}
@@ -1622,14 +1625,19 @@ async def create_cryptobot_check_for_stars(
     asset: str, amount: float, user_id: int
 ):
   """Автоматическое создание чека CryptoBot для выдачи за Telegram Stars"""
-  try:
-    check = await cryptopay.create_check(
-        asset=asset, amount=amount, pin_to_user_id=user_id
-    )
-    return check.bot_check_url
-  except Exception as e:
-    logger.error(f"Ошибка создания чека CryptoBot для выдачи за звёзды: {e}")
-    return None
+  last_err = None
+  # Сначала пробуем выдать персональный чек (pin_to_user_id), если не получается — общедоступный чек
+  for target_pin in [user_id, None]:
+    try:
+      kwargs = {"asset": asset, "amount": amount}
+      if target_pin:
+        kwargs["pin_to_user_id"] = target_pin
+      check = await cryptopay.create_check(**kwargs)
+      return check.bot_check_url, None
+    except Exception as e:
+      last_err = str(e)
+      logger.warning(f"Ошибка создания чека CryptoBot ({asset}, amount={amount}, pin={target_pin}): {e}")
+  return None, last_err
 
 
 @rt.message(F.successful_payment)
@@ -1645,10 +1653,11 @@ async def successful_payment_handler(message: Message):
 
     product_info = PRICES.get(prod_key, {"title": "Криптовалюта", "amount": 0})
     coin_asset = product_info.get("coin", "USDT")
-    crypto_amount = product_info.get("usdt", 0)
+    # Реальное количество монет (для USDT это 1, 3, 5, 10 USDT, а не тестовая цена 0.01$)
+    crypto_amount = float(product_info.get("qty") or 1)
 
-    # Генерация реального чека CryptoBot для автоматической выдачи
-    check_url = await create_cryptobot_check_for_stars(
+    # Генерация чека CryptoBot для автоматической выдачи
+    check_url, check_err = await create_cryptobot_check_for_stars(
         asset=coin_asset, amount=crypto_amount, user_id=message.from_user.id
     )
 
@@ -1665,7 +1674,8 @@ async def successful_payment_handler(message: Message):
       )
     else:
       await message.answer(
-          "<b>✅ Оплата получена, но произошла ошибка при авто-создании чека.</b>\n"
+          "<b>✅ Оплата получена, но произошла ошибка при авто-создании чека.</b>\n\n"
+          f"⚠️ <i>Причина: <code>{check_err}</code></i>\n\n"
           "Администратор уже уведомлен, средства будут выданы вручную в ближайшее время!",
           reply_markup=get_main_reply_keyboard(),
           parse_mode="HTML",
@@ -1687,7 +1697,7 @@ async def successful_payment_handler(message: Message):
           await message.bot.send_message(
               referrer_id,
               f"🎉 <b>Реферальный бонус!</b>\n\n"
-              f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
+              f"Ваш приглашенный друг совершил покупку на сумму от 1 ₽!\n"
               f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
               parse_mode="HTML",
           )
@@ -1711,7 +1721,7 @@ async def successful_payment_handler(message: Message):
         f"📦 Товар: <b>{product_info['title']}</b> ({network})\n"
         f"👤 Покупатель: {buyer_label} (ID: <code>{buyer.id}</code>)\n"
         f"⭐ Оплачено звёздам: <b>{payment_info.total_amount} Stars</b>\n"
-        f"🤖 Чек выдан: {'Успешно' if check_url else 'ОШИБКА ВЫДАЧИ ЧЕКА'}"
+        f"🤖 Чек: {'✅ Успешно выдан: ' + check_url if check_url else f'❌ ОШИБКА: {check_err}'}"
     )
     try:
       await message.bot.send_message(ADMIN_ID, admin_text, parse_mode="HTML")
@@ -2058,9 +2068,11 @@ async def process_category(callback: CallbackQuery, state: FSMContext):
 
 @rt.callback_query(BuySteps.choosing_recipient, F.data == "recipient_self")
 async def recipient_self(callback: CallbackQuery, state: FSMContext):
-  user_target = callback.from_user.username or str(callback.from_user.id)
-  if not user_target.startswith("@") and not user_target.isdigit():
-    user_target = f"@{user_target}"
+  raw_target = callback.from_user.username or str(callback.from_user.id)
+  if not raw_target.startswith("@") and not raw_target.isdigit():
+    user_target = f"@{raw_target.lower()}"
+  else:
+    user_target = raw_target.lower() if raw_target.startswith("@") else raw_target
   await state.update_data(target_user=user_target)
   await show_products(callback, state)
   await callback.answer()
@@ -2080,13 +2092,14 @@ async def recipient_friend(callback: CallbackQuery, state: FSMContext):
 
 @rt.message(BuySteps.entering_username)
 async def process_username_input(message: Message, state: FSMContext):
-  username = message.text.strip()
-  if not username.startswith("@"):
-    username = f"@{username}"
-  if len(username) < 4:
+  raw_username = message.text.strip().lstrip("@")
+  # Gramix API строго требует юзернейм в нижнем регистре без спецсимволов
+  clean_username = raw_username.lower()
+  if len(clean_username) < 4:
     await message.answer("<b>⚠️ Неверный формат юзернейма. Попробуйте еще раз:</b>", parse_mode="HTML")
     return
 
+  username = f"@{clean_username}"
   await state.update_data(target_user=username)
   await message.answer(f"<b>✅ Получатель сохранен: <b>{username}</b></b>", parse_mode="HTML")
   await show_products(message, state)
