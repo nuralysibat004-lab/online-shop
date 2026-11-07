@@ -1724,6 +1724,7 @@ async def check_crypto_payment(callback: CallbackQuery):
         )
 
       # 3. Криптовалюта (GRAM / TON / USDT)
+      else:
         raw_coin = product_info.get("coin", "TON")
         target_asset = "TON" if raw_coin in ("TON", "GRAM") else raw_coin
         target_qty = product_info.get("qty", 1)
