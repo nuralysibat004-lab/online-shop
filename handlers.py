@@ -1726,6 +1726,22 @@ async def create_cryptobot_check_for_stars(
 async def successful_payment_handler(message: Message):
   payment_info = message.successful_payment
   payload = payment_info.invoice_payload or ""
+  buyer = message.from_user
+  ord_id = f"STAR_{message.message_id}_{random.randint(100, 999)}"
+
+  # 1. ГАРАНТИРОВАННО И НЕЗАМЕДЛИТЕЛЬНО СОХРАНЯЕМ В БАЗУ ДАННЫХ
+  try:
+    stars_paid = payment_info.total_amount
+    bot_db.add_transaction(
+        order_id=ord_id,
+        user_id=buyer.id,
+        amount=stars_paid,
+        provider="Telegram Stars",
+        status="completed"
+    )
+    logger.info(f"⭐️ Заказ {ord_id} от пользователя {buyer.id} на {stars_paid} Stars успешно сохранен в БД!")
+  except Exception as err:
+    logger.error(f"Ошибка сохранения Stars заказа в БД: {err}", exc_info=True)
 
   if payload.startswith("native_star_crypto:"):
     parts = payload.split(":", 3)
@@ -1735,41 +1751,43 @@ async def successful_payment_handler(message: Message):
 
     product_info = PRICES.get(prod_key, {"title": "Криптовалюта", "amount": 0})
     coin_asset = product_info.get("coin", "USDT")
-    # Реальное количество монет (для USDT это 1, 3, 5, 10 USDT, а не тестовая цена 0.01$)
     crypto_amount = float(product_info.get("qty") or 1)
 
-    # Генерация чека CryptoBot для автоматической выдачи
-    check_url, check_err = await create_cryptobot_check_for_stars(
-        asset=coin_asset, amount=crypto_amount, user_id=message.from_user.id
-    )
-
-    if check_url:
-      await message.answer(
-          "<b>✅ Оплата Telegram Stars получена!</b>\n\n"
-          f"📦 Товар: <b>{product_info['title']}</b>\n"
-          f"🌐 Сеть: <b>{network}</b>\n\n"
-          f"🎉 <b>Твой чек на получение {crypto_amount} {coin_asset}:</b>\n"
-          f"👉 <a href='{check_url}'>Забрать криптовалюту в CryptoBot</a>",
-          reply_markup=get_main_reply_keyboard(),
-          parse_mode="HTML",
-          disable_web_page_preview=True,
-      )
-    else:
-      await message.answer(
-          "<b>✅ Оплата получена, но произошла ошибка при авто-создании чека.</b>\n\n"
-          f"⚠️ <i>Причина: <code>{check_err}</code></i>\n\n"
-          "Администратор уже уведомлен, средства будут выданы вручную в ближайшее время!",
-          reply_markup=get_main_reply_keyboard(),
-          parse_mode="HTML",
-      )
-    buyer = message.from_user
-
-    # Сохраняем оплаченный ордер в базу данных
+    # Генерация чека CryptoBot
+    check_url = None
+    check_err = None
     try:
-      ord_id = f"STAR_{message.message_id}_{random.randint(100, 999)}"
-      bot_db.add_transaction(order_id=ord_id, user_id=buyer.id, amount=product_info.get("amount", 0), provider="Telegram Stars", status="completed")
-    except Exception as err:
-      logger.error(f"Failed to record transaction for Stars: {err}")
+      check_url, check_err = await create_cryptobot_check_for_stars(
+          asset=coin_asset, amount=crypto_amount, user_id=message.from_user.id
+      )
+    except Exception as e:
+      check_err = str(e)
+      logger.warning(f"Ошибка вызова create_cryptobot_check_for_stars: {e}")
+
+    try:
+      if check_url:
+        await message.answer(
+            "<b>✅ Оплата Telegram Stars получена!</b>\n\n"
+            f"📦 Товар: <b>{product_info['title']}</b>\n"
+            f"🌐 Сеть: <b>{network}</b>\n\n"
+            f"🎉 <b>Твой чек на получение {crypto_amount} {coin_asset}:</b>\n"
+            f"👉 <a href='{check_url}'>Забрать криптовалюту в CryptoBot</a>\n\n"
+            "<i>Заказ добавлен в «📦 История заказов»!</i>",
+            reply_markup=get_main_reply_keyboard(),
+            parse_mode="HTML",
+            disable_web_page_preview=True,
+        )
+      else:
+        await message.answer(
+            "<b>✅ Оплата получена и зарегистрирована в «📦 История заказов»!</b>\n\n"
+            f"📦 Товар: <b>{product_info['title']}</b> (Заказ #{ord_id})\n"
+            f"⚠️ <i>Чек в CryptoBot создаётся администратором вручную (баланс бота пополняется).</i>\n\n"
+            "Администратор уже уведомлен и выдаст монеты в ближайшее время!",
+            reply_markup=get_main_reply_keyboard(),
+            parse_mode="HTML",
+        )
+    except Exception as e:
+      logger.error(f"Ошибка отправки сообщения покупателю: {e}")
 
     try:
       if product_info.get("amount", 0) >= REFERRAL_MIN_AMOUNT:
@@ -1793,13 +1811,17 @@ async def successful_payment_handler(message: Message):
           )
     except Exception as e:
       logger.error(f"Ошибка начисления реферального бонуса: {e}")
-    await publish_to_reviews_channel(
-        order_id=random.randint(1000, 9999),
-        product_title=product_info["title"],
-        buyer=buyer,
-        target_user=address,
-        amount_rub=product_info["amount"],
-    )
+
+    try:
+      await publish_to_reviews_channel(
+          order_id=random.randint(1000, 9999),
+          product_title=product_info["title"],
+          buyer=buyer,
+          target_user=address,
+          amount_rub=product_info.get("amount", 1),
+      )
+    except Exception as e:
+      logger.warning(f"Reviews channel error: {e}")
 
     buyer_label = (
         f"@{buyer.username}"
@@ -1809,28 +1831,26 @@ async def successful_payment_handler(message: Message):
     admin_text = (
         "<b>🔥 УСПЕШНАЯ ПОКУПКА КРИПТЫ ЗА TELEGRAM STARS!</b>\n\n"
         f"📦 Товар: <b>{product_info['title']}</b> ({network})\n"
+        f"🆔 Заказ: <code>{ord_id}</code>\n"
         f"👤 Покупатель: {buyer_label} (ID: <code>{buyer.id}</code>)\n"
-        f"⭐ Оплачено звёздам: <b>{payment_info.total_amount} Stars</b>\n"
-        f"🤖 Чек: {'✅ Успешно выдан: ' + check_url if check_url else f'❌ ОШИБКА: {check_err}'}"
+        f"⭐ Оплачено звёздами: <b>{payment_info.total_amount} Stars</b>\n"
+        f"🤖 Чек CryptoBot: {'✅ Выдан: ' + check_url if check_url else f'⚠️ Вручную: {check_err}'}"
     )
     try:
       await message.bot.send_message(ADMIN_ID, admin_text, parse_mode="HTML")
     except Exception:
       logger.exception("Не удалось отправить уведомление админу")
   else:
-    buyer = message.from_user
-    ord_id = f"STAR_{message.message_id}_{random.randint(100, 999)}"
     try:
-      bot_db.add_transaction(order_id=ord_id, user_id=buyer.id, amount=payment_info.total_amount, provider="Telegram Stars", status="completed")
-    except Exception as err:
-      logger.error(f"Failed to record generic stars transaction: {err}")
-    await message.answer(
-        "<b>✅ Оплата Telegram Stars получена!</b>\n\n"
-        f"⭐ Оплачено: <b>{payment_info.total_amount} Stars</b>\n"
-        "Ваш заказ успешно зарегистрирован и отображается в истории заказов.",
-        reply_markup=get_main_reply_keyboard(),
-        parse_mode="HTML"
-    )
+      await message.answer(
+          "<b>✅ Оплата Telegram Stars получена!</b>\n\n"
+          f"⭐ Оплачено: <b>{payment_info.total_amount} Stars</b> (Заказ #{ord_id})\n"
+          "Ваш заказ успешно зарегистрирован и отображается в «📦 История заказов».",
+          reply_markup=get_main_reply_keyboard(),
+          parse_mode="HTML"
+      )
+    except Exception as e:
+      logger.error(f"Ошибка отправки ответа: {e}")
 
 
 
