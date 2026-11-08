@@ -638,8 +638,6 @@ async def debug_db_command(message: Message):
 @rt.message(Command("test_add_order"))
 async def test_add_order_command(message: Message):
   user_id = message.from_user.id
-  if user_id not in list(set([ADMIN_ID] + ADMIN_IDS)):
-    return
   test_ord_id = f"TEST_{message.message_id}_{random.randint(100, 999)}"
   try:
     bot_db.add_transaction(
@@ -653,7 +651,7 @@ async def test_add_order_command(message: Message):
     await message.answer(
         f"✅ <b>Тестовый заказ <code>{test_ord_id}</code> записан!</b>\n\n"
         f"Всего заказов в твоей истории сейчас: <b>{len(orders)}</b>\n\n"
-        "Нажми кнопку <b>«📦 История заказов»</b> — он должен быть виден прямо в тексте!",
+        "Нажми кнопку <b>«📦 История заказов»</b> — он виден в разделе «🟢 Выполненные»!",
         parse_mode="HTML"
     )
   except Exception as e:
@@ -663,8 +661,6 @@ async def test_add_order_command(message: Message):
 @rt.message(Command("test_progress"))
 async def test_progress_command(message: Message):
   user_id = message.from_user.id
-  if user_id not in list(set([ADMIN_ID] + ADMIN_IDS)):
-    return
   test_ord_id = f"PROG_{message.message_id}_{random.randint(100, 999)}"
   try:
     bot_db.add_transaction(
@@ -686,8 +682,6 @@ async def test_progress_command(message: Message):
 @rt.message(Command("test_cancel"))
 async def test_cancel_command(message: Message):
   user_id = message.from_user.id
-  if user_id not in list(set([ADMIN_ID] + ADMIN_IDS)):
-    return
   test_ord_id = f"CANC_{message.message_id}_{random.randint(100, 999)}"
   try:
     bot_db.add_transaction(
@@ -933,6 +927,10 @@ async def start_handler(
 ):
   await state.clear()
   user_id = message.from_user.id
+  try:
+    bot_db.cancel_pending_orders(user_id=user_id)
+  except Exception:
+    pass
   user_name = html.escape(message.from_user.first_name or "друг")
 
   referrer_id = None
@@ -981,8 +979,38 @@ async def start_handler(
 
 
 @rt.callback_query(F.data == "back_to_menu")
+@rt.callback_query(F.data == "cancel_current_order")
+@rt.callback_query(F.data.startswith("cancel_order_"))
 async def back_to_menu_callback(callback: CallbackQuery, state: FSMContext):
+  user_id = callback.from_user.id
+  target_ord = callback.data.replace("cancel_order_", "") if callback.data.startswith("cancel_order_") else None
+  try:
+    if target_ord and target_ord != "cancel_current_order":
+      bot_db.cancel_order(target_ord)
+    bot_db.cancel_pending_orders(user_id=user_id)
+  except Exception as e:
+    logger.warning(f"Error cancelling pending orders: {e}")
+
   await state.clear()
+
+  if callback.data.startswith("cancel_order_") or callback.data == "cancel_current_order":
+    try:
+      await callback.answer("❌ Заказ успешно отменён!", show_alert=True)
+    except Exception:
+      pass
+    text = (
+        "❌ <b>Заказ отменён и перемещён в раздел «🔴 Отменённые»!</b>\n\n"
+        "Вы можете в любой момент выбрать другой товар или вернуться в главное меню 👇"
+    )
+    kb = InlineKeyboardMarkup(
+        inline_keyboard=[
+            [InlineKeyboardButton(text="📦 Мои заказы", callback_data="my_orders")],
+            [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+        ]
+    )
+    await safe_edit(callback, text, kb)
+    return
+
   user_name = html.escape(callback.from_user.first_name or "друг")
   text = (
       f"<b>Добро пожаловать, {user_name}! Ты попал в GumStars — лучший бот по покупке криптовалюты и цифровых товаров ⭐</b>\n\n"
@@ -998,6 +1026,23 @@ async def back_to_menu_callback(callback: CallbackQuery, state: FSMContext):
     await callback.answer()
   except Exception:
     pass
+
+
+@rt.message(F.text.in_({"🏠 Главное меню", "Главное меню", "В главное меню", "Меню", "меню", "/menu"}))
+async def text_main_menu(message: Message, state: FSMContext):
+  user_id = message.from_user.id
+  try:
+    bot_db.cancel_pending_orders(user_id=user_id)
+  except Exception as e:
+    logger.warning(f"Error cancelling pending orders in text_main_menu: {e}")
+  await state.clear()
+  user_name = html.escape(message.from_user.first_name or "друг")
+  text = (
+      f"<b>Добро пожаловать, {user_name}! Ты попал в GumStars — лучший бот по покупке криптовалюты и цифровых товаров ⭐</b>\n\n"
+      f"⚙️ Оферта, документы и контакты доступны в разделе <b>«⚙️ Прочее»</b>.\n\n"
+      f"Выберите нужный раздел в меню ниже 👇"
+  )
+  await send_section(message, "menu", text, get_main_reply_keyboard())
 
 
 @rt.message(F.text.in_({"🩷 Отзывы", "💬 Отзывы", "Отзывы"}))
@@ -1075,9 +1120,15 @@ async def text_orders(message: Message, state: FSMContext):
     orders_text = "<i>У вас пока нет оформленных заказов.</i>"
   else:
     formatted_items = []
-    for o in orders_list[:5]:
+    for o in orders_list[:10]:
       order_id, amount, provider, st, created_at = o[0], o[1], o[2], o[3], o[4]
-      st_icon = "🟢" if str(st).lower() in ("completed", "paid", "success", "выполнен", "выполненные") else ("🔵" if str(st).lower() in ("in_progress", "pending") else "🔴")
+      st_lower = str(st).lower().strip()
+      if st_lower in ("completed", "paid", "success", "выполнен", "выполненные"):
+        st_icon = "🟢"
+      elif st_lower in ("in_progress", "pending", "в процессе"):
+        st_icon = "🔵"
+      else:
+        st_icon = "🔴"
       formatted_items.append(f"• {st_icon} <b>Заказ #{order_id}</b> — {amount} ₽ ({provider})")
     orders_text = "<b>Последние заказы:</b>\n" + "\n".join(formatted_items)
 
@@ -1135,9 +1186,15 @@ async def my_orders_callback(callback: CallbackQuery):
     orders_text = "<i>В этой категории у вас пока нет заказов.</i>"
   else:
     formatted_items = []
-    for o in orders_list[:7]:  # Топ-7 последних заказов
+    for o in orders_list[:10]:
       order_id, amount, provider, st, created_at = o[0], o[1], o[2], o[3], o[4]
-      st_icon = "🟢" if str(st).lower() in ("completed", "paid", "success", "выполнен", "выполненные") else ("🔵" if str(st).lower() in ("in_progress", "pending") else "🔴")
+      st_lower = str(st).lower().strip()
+      if st_lower in ("completed", "paid", "success", "выполнен", "выполненные"):
+        st_icon = "🟢"
+      elif st_lower in ("in_progress", "pending", "в процессе"):
+        st_icon = "🔵"
+      else:
+        st_icon = "🔴"
       formatted_items.append(f"• {st_icon} <b>Заказ #{order_id}</b> — {amount} ₽ ({provider})")
     orders_text = "\n".join(formatted_items)
 
@@ -2182,7 +2239,8 @@ async def check_crypto_payment(callback: CallbackQuery):
 
       # Сохраняем оплаченный ордер в базу данных
       try:
-        bot_db.add_transaction(order_id=invoice.invoice_id, user_id=buyer.id, amount=product_info.get("amount", 0), provider="CryptoBot", status="completed")
+        bot_db.add_transaction(order_id=str(invoice.invoice_id), user_id=buyer.id, amount=product_info.get("amount", 0), provider="CryptoBot", status="completed")
+        bot_db.cancel_pending_orders(user_id=buyer.id)
       except Exception as err:
         logger.error(f"Failed to record transaction for CryptoBot: {err}")
 
@@ -2435,20 +2493,11 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     )
     cryptobot_url = invoice.bot_invoice_url
     cryptobot_id = invoice.invoice_id
-    try:
-      bot_db.add_transaction(
-          order_id=str(cryptobot_id),
-          user_id=callback.from_user.id,
-          amount=rub_price if is_stars else usdt_amount,
-          provider="CryptoBot",
-          status="in_progress"
-      )
-    except Exception as e:
-      logger.warning(f"Failed to record pending cryptobot order: {e}")
   except Exception as e:
     logger.error(f"Ошибка создания счета CryptoBot: {e}")
 
   buttons = []
+  crystal_id = None
 
   # 2. СБП подключаем ТОЛЬКО для Telegram Stars! В Premium и Крипте СБП отключен.
   if is_stars:
@@ -2463,17 +2512,8 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           "prod_key": product_key,
           "target_user": target_user,
           "rub_price": rub_price,
+          "cryptobot_id": str(cryptobot_id) if cryptobot_id else None,
       }
-      try:
-        bot_db.add_transaction(
-            order_id=str(crystal_id),
-            user_id=callback.from_user.id,
-            amount=rub_price,
-            provider="СБП (CrystalPAY)",
-            status="in_progress"
-        )
-      except Exception as e:
-        logger.warning(f"Failed to record pending sbp order: {e}")
       buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=crystal_res["url"])])
       buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_cryst_{crystal_id}")])
 
@@ -2483,6 +2523,28 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     buttons.append([InlineKeyboardButton(text=cb_text, url=cryptobot_url)])
     buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату CryptoBot", callback_data=f"checkcrypto_{cryptobot_id}")])
 
+  # 3. Сохраняем РОВНО ОДИН активный заказ со статусом in_progress!
+  # Сначала отменяем любые забытые висящие заказы этого пользователя
+  try:
+    bot_db.cancel_pending_orders(user_id=callback.from_user.id)
+  except Exception:
+    pass
+
+  active_order_id = crystal_id or (str(cryptobot_id) if cryptobot_id else f"ORD_{random.randint(100000, 999999)}")
+  provider_name = "СБП (CrystalPAY)" if (is_stars and crystal_id) else "CryptoBot"
+  try:
+    bot_db.add_transaction(
+        order_id=active_order_id,
+        user_id=callback.from_user.id,
+        amount=rub_price if is_stars else usdt_amount,
+        provider=provider_name,
+        status="in_progress"
+    )
+    logger.info(f"Создан заказ в процессе: order_id={active_order_id}, user={callback.from_user.id}")
+  except Exception as e:
+    logger.warning(f"Failed to record pending order: {e}")
+
+  buttons.append([InlineKeyboardButton(text="❌ Отменить заказ", callback_data=f"cancel_order_{active_order_id}")])
   buttons.append([InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")])
 
   kb = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -2497,7 +2559,8 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
         f"• <b>Через CryptoBot (со скидкой):</b> <b>{usdt_amount} USDT (~{crypto_rub} ₽)</b>\n\n"
         "<b>Выберите способ оплаты ниже:</b>\n"
         "• <b>🇷🇺 СБП (Система быстрых платежей)</b> — моментально через любой банк РФ\n"
-        "• <b>💎 CryptoBot</b> — оплата со скидкой в USDT прямо в Telegram"
+        "• <b>💎 CryptoBot</b> — оплата со скидкой в USDT прямо в Telegram\n\n"
+        "<i>Если передумали — нажмите кнопку «❌ Отменить заказ».</i>"
     )
   else:
     order_msg = (
@@ -2506,7 +2569,8 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
         f"👤 Получатель: <code>{target_user}</code>\n"
         f"💰 Стоимость: <b>{usdt_amount} USDT</b>\n\n"
         "<b>Способ оплаты:</b>\n"
-        "• <b>💎 CryptoBot</b> — моментальная оплата в USDT или TON прямо в Telegram"
+        "• <b>💎 CryptoBot</b> — моментальная оплата в USDT или TON прямо в Telegram\n\n"
+        "<i>Если передумали — нажмите кнопку «❌ Отменить заказ».</i>"
     )
 
   await safe_edit(callback, order_msg, kb)
@@ -2660,6 +2724,10 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
     # Сохраняем оплаченный ордер в базу данных
     try:
       bot_db.add_transaction(order_id=invoice_id, user_id=buyer.id, amount=rub_price, provider="СБП (CrystalPAY)", status="completed")
+      cb_id = pending.get("cryptobot_id")
+      if cb_id:
+        bot_db.cancel_pending_orders(user_id=buyer.id, order_id=str(cb_id))
+      bot_db.cancel_pending_orders(user_id=buyer.id)
     except Exception as err:
       logger.error(f"Failed to record transaction for CrystalPAY: {err}")
 
