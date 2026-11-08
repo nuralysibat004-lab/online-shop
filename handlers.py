@@ -2090,12 +2090,15 @@ async def check_crypto_payment(callback: CallbackQuery):
       buyer_label = f"@{buyer.username}" if buyer.username else html.escape(buyer.first_name or f"ID {buyer.id}")
       admin_text = f"<b>📦 [НОВЫЙ ЗАКАЗ] {product_info.get('title')}</b>\nПокупатель: {buyer_label}"
 
+      is_fulfilled = False
+
       # 1. Автоматическая доставка звёзд через Fragment API
       if prod_key.startswith("prod_stars_"):
         star_qty = product_info.get("quantity", 50)
         frag_res = await deliver_stars_via_fragment(recipient=address, quantity=star_qty)
 
         if frag_res.get("ok"):
+          is_fulfilled = True
           logger.info(f"Fragment API: {star_qty} звёзд успешно отправлено на {address}")
           await safe_edit(
               callback,
@@ -2115,13 +2118,14 @@ async def check_crypto_payment(callback: CallbackQuery):
               "<b>Статус:</b> ✅ Успешно отправлено через Fragment"
           )
         else:
+          is_fulfilled = False
           logger.error(f"Fragment API ошибка: {frag_res.get('error')}")
           await safe_edit(
               callback,
               "<b>✅ Оплата подтверждена!</b>\n\n"
               f"📦 Товар: <b>{product_info['title']}</b>\n"
               f"🎯 Получатель: <code>{address}</code>\n\n"
-              "⏳ <i>Заказ принят в обработку. Звёзды поступят на ваш аккаунт в течение нескольких минут!</i>",
+              "⏳ <i>Заказ принят в обработку (в процессе). Звёзды поступят на ваш аккаунт в ближайшее время!</i>",
               InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
           )
           admin_text = (
@@ -2137,12 +2141,13 @@ async def check_crypto_payment(callback: CallbackQuery):
 
       # 2. Telegram Premium (полуавтоматический режим)
       elif prod_key.startswith("prod_prem_"):
+        is_fulfilled = False
         await safe_edit(
             callback,
             "<b>✅ Оплата получена! Заказ передан в обработку 💎</b>\n\n"
             f"📦 Товар: <b>{product_info['title']}</b>\n"
             f"🎯 Получатель: <code>{address}</code>\n\n"
-            "⏳ <i>Администратор активирует Telegram Premium на ваш аккаунт в течение 5–15 минут!</i>",
+            "⏳ <i>Администратор активирует Telegram Premium на ваш аккаунт в течение 5–15 минут! Заказ сохранён в «🔵 В процессе».</i>",
             InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
         )
         source_tip = "в самом Telegram (напрямую дешевле)" if prod_key == "prod_prem_3" else "через Fragment"
@@ -2183,6 +2188,7 @@ async def check_crypto_payment(callback: CallbackQuery):
             break
 
         if check_url:
+          is_fulfilled = True
           kb = InlineKeyboardMarkup(
               inline_keyboard=[
                   [InlineKeyboardButton(text=f"🎁 Забрать чек на {target_qty} {target_asset}", url=check_url)],
@@ -2206,12 +2212,13 @@ async def check_crypto_payment(callback: CallbackQuery):
               f"<b>🔗 Чек выдан автоматически:</b> {check_url}"
           )
         else:
+          is_fulfilled = False
           await safe_edit(
               callback,
               "<b>✅ Оплата получена!</b>\n\n"
               f"📦 Товар: <b>{product_info['title']}</b>\n"
               f"🌐 Сеть: <b>{network}</b>\n\n"
-              "⏳ <i>Заказ принят! Чек будет выдан администратором вручную в ближайшее время.</i>",
+              "⏳ <i>Заказ принят! Так как баланс бота пуст, чек будет выдан администратором вручную. Заказ находится в «🔵 В процессе».</i>",
               InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
           )
           admin_text = (
@@ -2222,7 +2229,7 @@ async def check_crypto_payment(callback: CallbackQuery):
               f"<b>💰 Оплачено:</b> <b>{product_info['amount']} ₽</b> ({invoice.amount} {invoice.asset})\n"
               f"<b>🆔 Инвойс CryptoBot:</b> <code>#{invoice.invoice_id}</code>\n"
               f"⚠️ <b>Причина ошибки авто-чека:</b> <code>{last_check_err}</code>\n"
-              "👉 <i>Проверьте баланс приложения в @CryptoBot (Crypto Pay -> My Apps -> Баланс) и включены ли Checks в Security!</i>"
+              "👉 <i>Проверьте баланс приложения в @CryptoBot (Crypto Pay -> My Apps -> Баланс) и отправьте чек покупателю вручную!</i>"
           )
 
       # Уведомление администратора
@@ -2259,10 +2266,10 @@ async def check_crypto_payment(callback: CallbackQuery):
       except Exception as e:
         logger.error(f"Ошибка начисления реферального бонуса: {e}")
 
-      # Сохраняем оплаченный ордер в базу данных
+      # Сохраняем оплаченный ордер в базу данных: completed если выдан автоматически, иначе in_progress
+      final_status = "completed" if is_fulfilled else "in_progress"
       try:
-        bot_db.add_transaction(order_id=str(invoice.invoice_id), user_id=buyer.id, amount=product_info.get("amount", 0), provider="CryptoBot", status="completed")
-        bot_db.cancel_pending_orders(user_id=buyer.id)
+        bot_db.add_transaction(order_id=str(invoice.invoice_id), user_id=buyer.id, amount=product_info.get("amount", 0), provider="CryptoBot", status=final_status)
       except Exception as err:
         logger.error(f"Failed to record transaction for CryptoBot: {err}")
 
@@ -2631,12 +2638,15 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
     buyer = callback.from_user
     buyer_label = f"@{buyer.username}" if buyer.username else html.escape(buyer.first_name or f"ID {buyer.id}")
 
+    is_sbp_fulfilled = False
+
     # 1. Автоматическая доставка Stars через Fragment API
     if prod_key.startswith("prod_stars_"):
       star_qty = product_info.get("quantity", 50)
       frag_res = await deliver_stars_via_fragment(recipient=target_user, quantity=star_qty)
 
       if frag_res.get("ok"):
+        is_sbp_fulfilled = True
         logger.info(f"Fragment API: {star_qty} звёзд отправлено через СБП на {target_user}")
         await safe_edit(
             callback,
@@ -2647,22 +2657,24 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
             InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
         )
       else:
+        is_sbp_fulfilled = False
         await safe_edit(
             callback,
             "<b>✅ Оплата по СБП получена!</b>\n\n"
             f"📦 Товар: <b>{product_info['title']}</b>\n"
             f"🎯 Получатель: <code>{target_user}</code>\n\n"
-            "⏳ <i>Заказ принят. Звёзды поступят на ваш аккаунт в течение нескольких минут!</i>",
+            "⏳ <i>Заказ принят в обработку (в процессе). Звёзды поступят на ваш аккаунт в ближайшее время!</i>",
             InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
         )
     # 2. Telegram Premium
     elif prod_key.startswith("prod_prem_"):
+      is_sbp_fulfilled = False
       await safe_edit(
           callback,
           "<b>✅ Оплата по СБП получена! Заказ передан в обработку 💎</b>\n\n"
           f"📦 Товар: <b>{product_info['title']}</b>\n"
           f"🎯 Получатель: <code>{target_user}</code>\n\n"
-          "⏳ <i>Администратор активирует подписку Telegram Premium в течение 5–15 минут!</i>",
+          "⏳ <i>Администратор активирует подписку Telegram Premium в течение 5–15 минут! Заказ находится в «🔵 В процессе».</i>",
           InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
       )
     # 3. Криптовалюта
@@ -2684,6 +2696,7 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
           logger.warning(f"Не удалось выдать чек СБП с ассетом {target_asset} (pin={pin_id}): {e}")
 
       if check_url:
+        is_sbp_fulfilled = True
         kb = InlineKeyboardMarkup(
             inline_keyboard=[
                 [InlineKeyboardButton(text=f"🎁 Забрать чек на {target_qty} {target_asset}", url=check_url)],
@@ -2698,12 +2711,13 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
             kb,
         )
       else:
+        is_sbp_fulfilled = False
         await safe_edit(
             callback,
             "<b>✅ Оплата по СБП получена!</b>\n\n"
             f"📦 Товар: <b>{product_info['title']}</b>\n"
             f"🎯 Получатель: <code>{target_user}</code>\n\n"
-            "⏳ <i>Заказ принят! Чек будет выдан администратором вручную в ближайшее время.</i>",
+            "⏳ <i>Заказ принят! Так как баланс приложения пуст, чек будет выдан администратором вручную. Заказ сохранён в «🔵 В процессе».</i>",
             InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
         )
 
@@ -2715,7 +2729,7 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
         buyer=buyer,
         amount_str=f"{rub_price} ₽",
         method="СБП (CrystalPAY)",
-        status="✅ Оплата получена, заказ выполнен!",
+        status="✅ Оплата получена, требует ручной выдачи!" if not is_sbp_fulfilled else "✅ Оплата получена, заказ выполнен!",
         extra=f"Получатель: {target_user} | Инвойс: #{invoice_id}",
     )
 
@@ -2743,13 +2757,10 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
     except Exception as e:
       logger.error(f"Ошибка начисления реферального бонуса: {e}")
 
-    # Сохраняем оплаченный ордер в базу данных
+    # Сохраняем оплаченный ордер в базу данных: completed если выдан автоматически, иначе in_progress
+    sbp_final_status = "completed" if is_sbp_fulfilled else "in_progress"
     try:
-      bot_db.add_transaction(order_id=invoice_id, user_id=buyer.id, amount=rub_price, provider="СБП (CrystalPAY)", status="completed")
-      cb_id = pending.get("cryptobot_id")
-      if cb_id:
-        bot_db.cancel_pending_orders(user_id=buyer.id, order_id=str(cb_id))
-      bot_db.cancel_pending_orders(user_id=buyer.id)
+      bot_db.add_transaction(order_id=invoice_id, user_id=buyer.id, amount=rub_price, provider="СБП (CrystalPAY)", status=sbp_final_status)
     except Exception as err:
       logger.error(f"Failed to record transaction for CrystalPAY: {err}")
 
