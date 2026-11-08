@@ -1837,6 +1837,27 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
     buttons.append([InlineKeyboardButton(text=f"💎 Оплатить через CryptoBot ({usdt_amount} USDT)", url=cryptobot_url)])
     buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату CryptoBot", callback_data=f"checkcrypto_{cryptobot_id}")])
 
+  # 3. Сохраняем активный заказ криптовалюты со статусом in_progress
+  try:
+    bot_db.cancel_pending_orders(user_id=callback.from_user.id)
+  except Exception:
+    pass
+
+  active_order_id = str(cryptobot_id) if cryptobot_id else f"CRYPTO_{random.randint(100000, 999999)}"
+  provider_name = "Telegram Stars" if is_stable else "CryptoBot"
+  try:
+    bot_db.add_transaction(
+        order_id=active_order_id,
+        user_id=callback.from_user.id,
+        amount=product_info.get("stars", usdt_amount) if is_stable else usdt_amount,
+        provider=provider_name,
+        status="in_progress"
+    )
+    logger.info(f"Создан крипто заказ в процессе: order_id={active_order_id}, user={callback.from_user.id}")
+  except Exception as e:
+    logger.warning(f"Failed to record pending crypto order: {e}")
+
+  buttons.append([InlineKeyboardButton(text="❌ Отменить заказ", callback_data=f"cancel_order_{active_order_id}")])
   buttons.append([InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")])
 
   kb = InlineKeyboardMarkup(inline_keyboard=buttons)
@@ -1854,7 +1875,8 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
       f"👤 Получатель: <code>{target_user}</code>\n"
       f"💰 Стоимость: " + (f"<b>{product_info['stars']} ⭐</b>" if product_info.get("stars") else f"<b>{usdt_amount} USDT</b>") + "\n\n"
       "<b>Способ оплаты:</b>\n"
-      f"{methods_text}"
+      f"{methods_text}\n\n"
+      "<i>Если передумали — нажмите кнопку «❌ Отменить заказ».</i>"
   )
 
   await safe_edit(callback, order_text, kb)
