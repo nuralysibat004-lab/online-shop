@@ -660,6 +660,52 @@ async def test_add_order_command(message: Message):
     await message.answer(f"❌ Ошибка записи тестового заказа: <code>{e}</code>", parse_mode="HTML")
 
 
+@rt.message(Command("test_progress"))
+async def test_progress_command(message: Message):
+  user_id = message.from_user.id
+  if user_id not in list(set([ADMIN_ID] + ADMIN_IDS)):
+    return
+  test_ord_id = f"PROG_{message.message_id}_{random.randint(100, 999)}"
+  try:
+    bot_db.add_transaction(
+        order_id=test_ord_id,
+        user_id=user_id,
+        amount=100.0,
+        provider="CryptoBot",
+        status="in_progress"
+    )
+    await message.answer(
+        f"🔵 <b>Тестовый заказ <code>{test_ord_id}</code> со статусом «В процессе» создан!</b>\n\n"
+        "Нажми <b>«📦 История заказов»</b> ➔ <b>«🔵 В процессе»</b>, чтобы проверить!",
+        parse_mode="HTML"
+    )
+  except Exception as e:
+    await message.answer(f"❌ Ошибка: <code>{e}</code>", parse_mode="HTML")
+
+
+@rt.message(Command("test_cancel"))
+async def test_cancel_command(message: Message):
+  user_id = message.from_user.id
+  if user_id not in list(set([ADMIN_ID] + ADMIN_IDS)):
+    return
+  test_ord_id = f"CANC_{message.message_id}_{random.randint(100, 999)}"
+  try:
+    bot_db.add_transaction(
+        order_id=test_ord_id,
+        user_id=user_id,
+        amount=250.0,
+        provider="СБП (CrystalPAY)",
+        status="cancelled"
+    )
+    await message.answer(
+        f"🔴 <b>Тестовый заказ <code>{test_ord_id}</code> со статусом «Отменённые» создан!</b>\n\n"
+        "Нажми <b>«📦 История заказов»</b> ➔ <b>«🔴 Отменённые»</b>, чтобы проверить!",
+        parse_mode="HTML"
+    )
+  except Exception as e:
+    await message.answer(f"❌ Ошибка: <code>{e}</code>", parse_mode="HTML")
+
+
 @rt.message(Command("refund"))
 @rt.message(Command("refund_stars"))
 async def cmd_refund_stars(message: Message, command: CommandObject):
@@ -2389,6 +2435,16 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     )
     cryptobot_url = invoice.bot_invoice_url
     cryptobot_id = invoice.invoice_id
+    try:
+      bot_db.add_transaction(
+          order_id=str(cryptobot_id),
+          user_id=callback.from_user.id,
+          amount=rub_price if is_stars else usdt_amount,
+          provider="CryptoBot",
+          status="in_progress"
+      )
+    except Exception as e:
+      logger.warning(f"Failed to record pending cryptobot order: {e}")
   except Exception as e:
     logger.error(f"Ошибка создания счета CryptoBot: {e}")
 
@@ -2408,6 +2464,16 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           "target_user": target_user,
           "rub_price": rub_price,
       }
+      try:
+        bot_db.add_transaction(
+            order_id=str(crystal_id),
+            user_id=callback.from_user.id,
+            amount=rub_price,
+            provider="СБП (CrystalPAY)",
+            status="in_progress"
+        )
+      except Exception as e:
+        logger.warning(f"Failed to record pending sbp order: {e}")
       buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=crystal_res["url"])])
       buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_cryst_{crystal_id}")])
 
