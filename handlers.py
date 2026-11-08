@@ -1052,16 +1052,28 @@ async def text_profile(message: Message, state: FSMContext):
   await state.clear()
   user_id = message.from_user.id
   user_name = html.escape(message.from_user.first_name or "друг")
+  try:
+    orders = bot_db.get_user_orders(user_id)
+    total_spent = sum(float(o[1] or 0) for o in orders if str(o[3]).lower() in ("completed", "paid", "success", "выполнен", "выполненные"))
+    active_orders = sum(1 for o in orders if str(o[3]).lower() in ("in_progress", "pending", "в процессе"))
+  except Exception as e:
+    logger.error(f"Error in profile stats: {e}")
+    total_spent = 0.0
+    active_orders = 0
+    orders = []
+
   text = (
       f"<b>👤 ЛИЧНЫЙ КАБИНЕТ</b>\n\n"
       f"• Имя: <b>{user_name}</b>\n"
       f"• ID: <code>{user_id}</code>\n"
       f"• Баланс звезд: <b>{get_balance(user_id)}</b> ⭐\n"
-      f"• Активных заказов: <b>0</b>\n"
-      f"• Сумма покупок: <b>0.00 ₽</b>"
+      f"• Всего заказов: <b>{len(orders)}</b>\n"
+      f"• Активных заказов: <b>{active_orders}</b>\n"
+      f"• Сумма покупок: <b>{total_spent:.2f} ₽ / ⭐</b>"
   )
   keyboard = InlineKeyboardMarkup(
       inline_keyboard=[
+          [InlineKeyboardButton(text="📦 Мои заказы", callback_data="my_orders")],
           [InlineKeyboardButton(text="👥 Реферальная система", callback_data="ref")],
           [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
       ]
