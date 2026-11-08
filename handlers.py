@@ -189,7 +189,7 @@ PRICES = {
     "prod_crypto_ton_5": {"amount": 550, "usdt": 6.82, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
     "prod_crypto_ton_7": {"amount": 770, "usdt": 9.55, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
     "prod_crypto_ton_10": {"amount": 1100, "usdt": 13.64, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
-    "prod_crypto_usdt_1": {"amount": 95, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
+    "prod_crypto_usdt_1": {"amount": 1, "usdt": 1, "stars": 1, "title": "1 USDT (TEST)", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
     "prod_crypto_usdt_3": {"amount": 279, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
     "prod_crypto_usdt_5": {"amount": 455, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
     "prod_crypto_usdt_7": {"amount": 630, "usdt": 7, "stars": 532, "title": "7 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
@@ -949,17 +949,29 @@ async def text_orders(message: Message, state: FSMContext):
   user_id = message.from_user.id
   try:
     stats = bot_db.get_user_orders_stats(user_id)
+    orders_list = bot_db.get_user_orders(user_id)
   except Exception as e:
     logger.error(f"Error fetching order stats for user {user_id}: {e}")
     stats = {"total": 0, "in_progress": 0, "completed": 0, "cancelled": 0}
+    orders_list = []
+
+  if not orders_list:
+    orders_text = "<i>У вас пока нет оформленных заказов.</i>"
+  else:
+    formatted_items = []
+    for o in orders_list[:5]:
+      order_id, amount, provider, st, created_at = o[0], o[1], o[2], o[3], o[4]
+      st_icon = "🟢" if str(st).lower() in ("completed", "paid", "success", "выполнен", "выполненные") else ("🔵" if str(st).lower() in ("in_progress", "pending") else "🔴")
+      formatted_items.append(f"• {st_icon} <b>Заказ #{order_id}</b> — {amount} ₽ ({provider})")
+    orders_text = "<b>Последние заказы:</b>\n" + "\n".join(formatted_items)
 
   text = (
       "📦 <b>МОИ ЗАКАЗЫ</b>\n"
       "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
-      f"Всего заказов: <b>{stats['total']}</b>\n\n"
-      f"🔵 В процессе: <b>{stats['in_progress']}</b>\n"
-      f"🟢 Выполненные: <b>{stats['completed']}</b>\n"
-      f"🔴 Отменённые: <b>{stats['cancelled']}</b>\n"
+      f"Всего заказов: <b>{stats['total']}</b>\n"
+      f"🔵 В процессе: <b>{stats['in_progress']}</b> | 🟢 Выполненные: <b>{stats['completed']}</b> | 🔴 Отменённые: <b>{stats['cancelled']}</b>\n"
+      "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n\n"
+      f"{orders_text}\n\n"
       "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
       "Выберите категорию 👇"
   )
@@ -1007,16 +1019,17 @@ async def my_orders_callback(callback: CallbackQuery):
     orders_text = "<i>В этой категории у вас пока нет заказов.</i>"
   else:
     formatted_items = []
-    for o in orders_list[:5]:  # Топ-5 последних заказов
+    for o in orders_list[:7]:  # Топ-7 последних заказов
       order_id, amount, provider, st, created_at = o[0], o[1], o[2], o[3], o[4]
-      formatted_items.append(f"• <b>Заказ #{order_id}</b> — {amount} ₽ ({provider}) | <i>{st}</i>")
+      st_icon = "🟢" if str(st).lower() in ("completed", "paid", "success", "выполнен", "выполненные") else ("🔵" if str(st).lower() in ("in_progress", "pending") else "🔴")
+      formatted_items.append(f"• {st_icon} <b>Заказ #{order_id}</b> — {amount} ₽ ({provider})")
     orders_text = "\n".join(formatted_items)
 
   text = (
       "📦 <b>МОИ ЗАКАЗЫ</b>\n"
       "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
       f"Категория: <b>{selected_label}</b>\n\n"
-      f"{orders_text}\n"
+      f"{orders_text}\n\n"
       "⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯⎯\n"
       "Выберите категорию 👇"
   )
@@ -1480,7 +1493,7 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 USDT — 78 ⭐ (95 ₽)", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="1 USDT — 1 ⭐ (ТЕСТ)", callback_data="prod_crypto_usdt_1")],
             [InlineKeyboardButton(text="3 USDT — 234 ⭐ (279 ₽)", callback_data="prod_crypto_usdt_3")],
             [InlineKeyboardButton(text="5 USDT — 385 ⭐ (455 ₽)", callback_data="prod_crypto_usdt_5")],
             [InlineKeyboardButton(text="7 USDT — 532 ⭐ (630 ₽)", callback_data="prod_crypto_usdt_7")],
@@ -1529,7 +1542,7 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 USDT — 78 ⭐ (95 ₽)", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="1 USDT — 1 ⭐ (ТЕСТ)", callback_data="prod_crypto_usdt_1")],
             [InlineKeyboardButton(text="3 USDT — 234 ⭐ (279 ₽)", callback_data="prod_crypto_usdt_3")],
             [InlineKeyboardButton(text="5 USDT — 385 ⭐ (455 ₽)", callback_data="prod_crypto_usdt_5")],
             [InlineKeyboardButton(text="7 USDT — 532 ⭐ (630 ₽)", callback_data="prod_crypto_usdt_7")],
@@ -1804,6 +1817,20 @@ async def successful_payment_handler(message: Message):
       await message.bot.send_message(ADMIN_ID, admin_text, parse_mode="HTML")
     except Exception:
       logger.exception("Не удалось отправить уведомление админу")
+  else:
+    buyer = message.from_user
+    ord_id = f"STAR_{message.message_id}_{random.randint(100, 999)}"
+    try:
+      bot_db.add_transaction(order_id=ord_id, user_id=buyer.id, amount=payment_info.total_amount, provider="Telegram Stars", status="completed")
+    except Exception as err:
+      logger.error(f"Failed to record generic stars transaction: {err}")
+    await message.answer(
+        "<b>✅ Оплата Telegram Stars получена!</b>\n\n"
+        f"⭐ Оплачено: <b>{payment_info.total_amount} Stars</b>\n"
+        "Ваш заказ успешно зарегистрирован и отображается в истории заказов.",
+        reply_markup=get_main_reply_keyboard(),
+        parse_mode="HTML"
+    )
 
 
 
