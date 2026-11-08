@@ -130,7 +130,7 @@ async def check_crystalpay_invoice(invoice_id: str) -> dict:
     except Exception as e:
         return {"ok": False, "is_paid": False, "error": str(e)}
 
-async def notify_admin_order(bot_obj: Bot, order_type: str, product_title: str, buyer, amount_str: str, method: str, status: str, extra: str = ""):
+async def notify_admin_order(bot_obj: Bot, order_type: str, product_title: str, buyer, amount_str: str, method: str, status: str, extra: str = "", order_id: str = ""):
     """Мгновенное уведомление администратору о заказе на ID 7461353872"""
     buyer_label = f"@{buyer.username}" if getattr(buyer, "username", None) else html.escape(getattr(buyer, "first_name", "Клиент") or "Клиент")
     buyer_id = getattr(buyer, "id", "Неизвестен")
@@ -146,9 +146,15 @@ async def notify_admin_order(bot_obj: Bot, order_type: str, product_title: str, 
     if extra:
         text += f"\nℹ️ <i>{extra}</i>"
 
+    reply_markup = None
+    if order_id:
+        reply_markup = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="✅ Перевести в «Выполненные»", callback_data=f"admin_comp_{order_id}")]]
+        )
+
     for aid in list(set([ADMIN_ID] + ADMIN_IDS)):
         try:
-            await bot_obj.send_message(chat_id=aid, text=text, parse_mode="HTML")
+            await bot_obj.send_message(chat_id=aid, text=text, reply_markup=reply_markup, parse_mode="HTML")
         except Exception as e:
             logger.error(f"Не удалось отправить уведомление админу {aid}: {e}")
 
@@ -698,6 +704,81 @@ async def test_cancel_command(message: Message):
     )
   except Exception as e:
     await message.answer(f"❌ Ошибка: <code>{e}</code>", parse_mode="HTML")
+
+
+@rt.message(Command("complete"))
+@rt.message(Command("done"))
+async def cmd_complete_order(message: Message, command: CommandObject = None):
+  """Переводит заказ из статуса in_progress в completed (команда администратора)"""
+  user_id = message.from_user.id
+  args = (command.args or "").strip() if command else ""
+
+  if not args:
+    pending_orders = bot_db.get_user_orders(user_id, status="in_progress")
+    if not pending_orders:
+      await message.answer(
+          "⚠️ <b>У вас нет заказов в статусе «В процессе»!</b>\n\n"
+          "Укажите ID конкретного заказа:\n"
+          "• <code>/complete &lt;ID_заказа&gt;</code> (например: <code>/complete PROG_123_456</code>)",
+          parse_mode="HTML"
+      )
+      return
+    target_ord_id = str(pending_orders[0][0])
+  else:
+    target_ord_id = args.split()[0]
+
+  buyer_id = bot_db.complete_order(target_ord_id)
+
+  await message.answer(
+      f"✅ <b>Заказ <code>{target_ord_id}</code> переведён в статус «🟢 Выполненные»!</b>\n\n"
+      "Проверьте раздел <b>«📦 История заказов»</b>!",
+      parse_mode="HTML"
+  )
+
+  if buyer_id:
+    try:
+      await message.bot.send_message(
+          chat_id=buyer_id,
+          text=f"🎉 <b>Ваш заказ <code>#{target_ord_id}</code> успешно выполнен!</b>\n\n"
+               "Спасибо за покупку в <b>GumStars</b>! ✨\n"
+               "Заказ перемещён в раздел <b>«🟢 Выполненные»</b>.",
+          parse_mode="HTML"
+      )
+    except Exception as e:
+      logger.warning(f"Failed to notify buyer {buyer_id}: {e}")
+
+
+@rt.callback_query(F.data.startswith("admin_comp_"))
+async def admin_complete_callback(callback: CallbackQuery):
+  """Инлайн-кнопка выполнения заказа в уведомлении администратора"""
+  ord_id = callback.data.replace("admin_comp_", "")
+  buyer_id = bot_db.complete_order(ord_id)
+
+  try:
+    await callback.answer("✅ Заказ успешно выполнен!", show_alert=True)
+  except Exception:
+    pass
+
+  try:
+    await safe_edit(
+        callback,
+        callback.message.text + f"\n\n<b>✅ ЗАКАЗ #{ord_id} ВЫПОЛНЕН!</b>",
+        None
+    )
+  except Exception:
+    pass
+
+  if buyer_id:
+    try:
+      await callback.bot.send_message(
+          chat_id=buyer_id,
+          text=f"🎉 <b>Ваш заказ <code>#{ord_id}</code> успешно выполнен!</b>\n\n"
+               "Спасибо за покупку в <b>GumStars</b>! ✨\n"
+               "Заказ перенесён в раздел <b>«🟢 Выполненные»</b>.",
+          parse_mode="HTML"
+      )
+    except Exception as e:
+      logger.warning(f"Failed to notify buyer {buyer_id}: {e}")
 
 
 @rt.message(Command("refund"))
@@ -2232,9 +2313,12 @@ async def check_crypto_payment(callback: CallbackQuery):
               "👉 <i>Проверьте баланс приложения в @CryptoBot (Crypto Pay -> My Apps -> Баланс) и отправьте чек покупателю вручную!</i>"
           )
 
-      # Уведомление администратора
+      # Уведомление администратора (с кнопкой завершения, если требуется ручная выдача)
       try:
-        await callback.bot.send_message(ADMIN_ID, admin_text, parse_mode="HTML")
+        reply_kb = InlineKeyboardMarkup(
+            inline_keyboard=[[InlineKeyboardButton(text="✅ Отметить как выполненный", callback_data=f"admin_comp_{invoice.invoice_id}")]]
+        ) if not is_fulfilled else None
+        await callback.bot.send_message(ADMIN_ID, admin_text, reply_markup=reply_kb, parse_mode="HTML")
       except Exception as e:
         logger.error(f"Не удалось отправить уведомление админу: {e}")
 
