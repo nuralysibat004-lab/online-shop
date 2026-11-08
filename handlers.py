@@ -590,6 +590,76 @@ async def cmd_set_balance(message: Message, command: CommandObject = None):
   )
 
 
+@rt.message(Command("debug_db"))
+async def debug_db_command(message: Message):
+  user_id = message.from_user.id
+  if user_id not in list(set([ADMIN_ID] + ADMIN_IDS)):
+    return
+  lines = []
+  lines.append("<b>🔍 ДИАГНОСТИКА БАЗЫ ДАННЫХ</b>")
+  lines.append(f"• Режим: <b>{'PostgreSQL (Neon)' if bot_db.is_postgres else 'SQLite (локальный)'}</b>")
+  lines.append(f"• Твой ID: <code>{user_id}</code>")
+
+  # 1. Проверяем колонки
+  try:
+    if bot_db.is_postgres:
+      col_rows = bot_db._run("""
+        SELECT column_name, data_type 
+        FROM information_schema.columns 
+        WHERE table_name = 'transactions';
+      """, fetch="all")
+      cols_str = ", ".join(f"{r[0]} ({r[1]})" for r in (col_rows or []))
+    else:
+      col_rows = bot_db._run("PRAGMA table_info(transactions);", fetch="all")
+      cols_str = ", ".join(f"{r[1]} ({r[2]})" for r in (col_rows or []))
+    lines.append(f"• Колонки: <code>{cols_str or 'ТАБЛИЦА transactions НЕ СУЩЕСТВУЕТ!'}</code>")
+  except Exception as e:
+    lines.append(f"• Ошибка колонок: <code>{e}</code>")
+
+  # 2. Проверяем последние записи
+  try:
+    rows = bot_db._run("SELECT order_id, user_id, amount, provider, status, created_at FROM transactions ORDER BY created_at DESC LIMIT 5;", fetch="all")
+    lines.append(f"• Всего записей (топ-5): <b>{len(rows or [])}</b>")
+    for r in (rows or []):
+      lines.append(f"  └ <code>{r}</code>")
+  except Exception as e:
+    lines.append(f"• Ошибка чтения: <code>{e}</code>")
+
+  # 3. get_user_orders
+  try:
+    u_orders = bot_db.get_user_orders(user_id)
+    lines.append(f"• Твоих заказов через get_user_orders: <b>{len(u_orders)}</b>")
+  except Exception as e:
+    lines.append(f"• Ошибка get_user_orders: <code>{e}</code>")
+
+  await message.answer("\n".join(lines), parse_mode="HTML")
+
+
+@rt.message(Command("test_add_order"))
+async def test_add_order_command(message: Message):
+  user_id = message.from_user.id
+  if user_id not in list(set([ADMIN_ID] + ADMIN_IDS)):
+    return
+  test_ord_id = f"TEST_{message.message_id}_{random.randint(100, 999)}"
+  try:
+    bot_db.add_transaction(
+        order_id=test_ord_id,
+        user_id=user_id,
+        amount=1.0,
+        provider="Тест",
+        status="completed"
+    )
+    orders = bot_db.get_user_orders(user_id)
+    await message.answer(
+        f"✅ <b>Тестовый заказ <code>{test_ord_id}</code> записан!</b>\n\n"
+        f"Всего заказов в твоей истории сейчас: <b>{len(orders)}</b>\n\n"
+        "Нажми кнопку <b>«📦 История заказов»</b> — он должен быть виден прямо в тексте!",
+        parse_mode="HTML"
+    )
+  except Exception as e:
+    await message.answer(f"❌ Ошибка записи тестового заказа: <code>{e}</code>", parse_mode="HTML")
+
+
 @rt.message(Command("refund"))
 @rt.message(Command("refund_stars"))
 async def cmd_refund_stars(message: Message, command: CommandObject):
