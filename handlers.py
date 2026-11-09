@@ -209,16 +209,16 @@ PRICES = {
     "prod_prem_3": {"amount": 1150, "usdt": 14.22, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
     "prod_prem_6": {"amount": 1850, "usdt": 22.88, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
     "prod_prem_12": {"amount": 3300, "usdt": 40.80, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
-    "prod_crypto_ton_1": {"amount": 110, "usdt": 1.36, "title": "1 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 1},
-    "prod_crypto_ton_3": {"amount": 330, "usdt": 4.09, "title": "3 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 3},
-    "prod_crypto_ton_5": {"amount": 550, "usdt": 6.82, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
-    "prod_crypto_ton_7": {"amount": 770, "usdt": 9.55, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
-    "prod_crypto_ton_10": {"amount": 1100, "usdt": 13.64, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
-    "prod_crypto_usdt_1": {"amount": 93, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
-    "prod_crypto_usdt_3": {"amount": 279, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
-    "prod_crypto_usdt_5": {"amount": 455, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
-    "prod_crypto_usdt_7": {"amount": 630, "usdt": 7, "stars": 532, "title": "7 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
-    "prod_crypto_usdt_10": {"amount": 890, "usdt": 10, "stars": 750, "title": "10 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 10},
+    "prod_crypto_ton_1": {"amount": 125, "usdt": 1.36, "title": "1 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 1},
+    "prod_crypto_ton_3": {"amount": 375, "usdt": 4.09, "title": "3 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 3},
+    "prod_crypto_ton_5": {"amount": 625, "usdt": 6.82, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
+    "prod_crypto_ton_7": {"amount": 875, "usdt": 9.55, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
+    "prod_crypto_ton_10": {"amount": 1250, "usdt": 13.64, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
+    "prod_crypto_usdt_1": {"amount": 98, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
+    "prod_crypto_usdt_3": {"amount": 294, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
+    "prod_crypto_usdt_5": {"amount": 490, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
+    "prod_crypto_usdt_7": {"amount": 686, "usdt": 7, "stars": 532, "title": "7 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
+    "prod_crypto_usdt_10": {"amount": 980, "usdt": 10, "stars": 750, "title": "10 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 10},
 }
 
 
@@ -2613,6 +2613,9 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   is_stars = product_info.get("type") == "stars"
   crypto_rub = int(round(usdt_amount * 81))
 
+  is_crypto = product_info.get("type") in ("crypto", "crypto_native_stars")
+  supports_sbp = is_stars or is_crypto
+
   # 1. Формируем счет CryptoBot (USDT)
   cryptobot_url = None
   cryptobot_id = None
@@ -2631,8 +2634,9 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   buttons = []
   paysync_id = None
 
-  # 2. СБП (PaySync) подключаем ТОЛЬКО для Telegram Stars! В Premium и Крипте СБП отключен.
-  if is_stars:
+  # 2. СБП (PaySync) подключаем для Telegram Stars и Криптовалюты (USDT / GRAM)!
+  # В Telegram Premium СБП отключен (только CryptoBot).
+  if supports_sbp:
     paysync_res = await create_paysync_invoice(
         amount=rub_price,
         description=f"{product_info['title']} для {target_user}",
@@ -2651,24 +2655,23 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
 
   # Кнопки CryptoBot
   if cryptobot_url:
-    cb_text = f"💎 Оплатить криптой ({usdt_amount} USDT ~ {crypto_rub} ₽)" if is_stars else f"💎 Оплатить через CryptoBot ({usdt_amount} USDT)"
+    cb_text = f"💎 Оплатить криптой ({usdt_amount} USDT ~ {crypto_rub} ₽)" if supports_sbp else f"💎 Оплатить через CryptoBot ({usdt_amount} USDT)"
     buttons.append([InlineKeyboardButton(text=cb_text, url=cryptobot_url)])
     buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату CryptoBot", callback_data=f"checkcrypto_{cryptobot_id}")])
 
   # 3. Сохраняем РОВНО ОДИН активный заказ со статусом in_progress!
-  # Сначала отменяем любые забытые висящие заказы этого пользователя
   try:
     bot_db.cancel_pending_orders(user_id=callback.from_user.id)
   except Exception:
     pass
 
   active_order_id = paysync_id or (str(cryptobot_id) if cryptobot_id else f"ORD_{random.randint(100000, 999999)}")
-  provider_name = "СБП (PaySync)" if (is_stars and paysync_id) else "CryptoBot"
+  provider_name = "СБП (PaySync)" if (supports_sbp and paysync_id) else "CryptoBot"
   try:
     bot_db.add_transaction(
         order_id=active_order_id,
         user_id=callback.from_user.id,
-        amount=rub_price if is_stars else usdt_amount,
+        amount=rub_price if supports_sbp else usdt_amount,
         provider=provider_name,
         status="in_progress"
     )
@@ -2681,7 +2684,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
 
   kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-  if is_stars:
+  if supports_sbp:
     order_msg = (
         "<b>✅ Заказ успешно сформирован!</b>\n\n"
         f"📦 Товар: <b>{product_info['title']}</b>\n"
