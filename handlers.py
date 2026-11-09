@@ -973,7 +973,7 @@ def back_keyboard():
   )
 
 
-OFERTA_URL = "https://telegra.ph/Publichnaya-oferta-i-Politika-vozvrata-GumStars-11-05"
+OFERTA_URL = "https://telegra.ph/Publichnaya-oferta-i-Politika-vozvrata-GumStars-11-09"
 DOCS_URL = "https://telegra.ph/Dokumenty-i-Politika-GumStars-11-02"
 
 
@@ -1496,7 +1496,7 @@ async def cmd_docs_teleg(message: Message):
       "• <b>3.1. Цифровые товары:</b>\n"
       "Цифровые товары надлежащего качества после успешной доставки возврату не подлежат.\n\n"
       "• <b>3.2. 100% Гарантия при сбое или недоставке:</b>\n"
-      "В случае технического сбоя сети или задержки доставки покупателю гарантируется <b>повторная отправка товара либо полный возврат уплаченных средств</b> через поддержку (@bull9bull / gumsupport@gmail.com)."
+      "В случае технического сбоя, задержки или недоставки товара сервис гарантирует 100% повторную отправку товара либо полный возврат уплаченных средств по первому обращению в службу поддержки (@bull9bull / gumsupport@gmail.com). Возврат средств осуществляется исключительно в цифровом виде — звёздами (Telegram Stars) или криптовалютой (USDT / GRAM через чек CryptoBot), прямые возвраты в рублях не производятся."
   )
   await message.answer(text, reply_markup=kb, parse_mode="HTML")
 
