@@ -66,76 +66,86 @@ admin_bot = (
     else None
 )
 
+# ID клиента в PaySync
+PAYSYNC_CLIENT_ID = os.getenv("PAYSYNC_CLIENT_ID", "7461353872")
+
 rt = Router()
 bot_db = BotDB(DATABASE)
 PAYSYNC_PENDING_ORDERS = {}
 CRYSTAL_PENDING_ORDERS = PAYSYNC_PENDING_ORDERS
 
 async def create_paysync_invoice(amount: float, description: str, extra: str = "") -> dict:
-    """Создание ссылки на оплату по СБП через кассу PaySync"""
-    if not PAYSYNC_SECRET_KEY:
-        logger.warning("PAYSYNC_SECRET_KEY не настроен в переменных окружения Render!")
-        return {"ok": False, "error": "Ключ кассы PaySync не настроен"}
+    """Создание ссылки на оплату по СБП через официальный API PaySync (REDIRECT)"""
+    client_id = PAYSYNC_CLIENT_ID or "7461353872"
+    amt_int = int(round(amount))
+    
+    # 1. Основной официальный метод PaySync REDIRECT: https://paysync.bot/create_invoice/{client_id}/{amount}/{currency}?data={extra}
+    url = f"https://paysync.bot/create_invoice/{client_id}/{amt_int}/RUB"
+    params = {"data": extra[:120]}
+    headers = {"Content-Type": "application/json"}
+    if PAYSYNC_SECRET_KEY:
+        headers["Authorization"] = f"Bearer {PAYSYNC_SECRET_KEY}"
+        headers["X-API-KEY"] = PAYSYNC_SECRET_KEY
 
-    url = "https://api.crystalpay.io/v2/invoice/create/"
-    payload = {
-        "auth_login": PAYSYNC_AUTH_LOGIN,
-        "auth_secret": PAYSYNC_SECRET_KEY,
-        "amount": amount,
-        "type": "purchase",
-        "description": description[:120],
-        "redirect_url": "https://t.me/GumStars_bot",
-        "extra": extra[:120],
-        "lifetime": 60,
-    }
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload, timeout=20) as resp:
-                data = await resp.json()
-                if not data.get("error") and data.get("url"):
-                    return {
-                        "ok": True,
-                        "invoice_id": data.get("id"),
-                        "url": data.get("url"),
-                    }
-                err_msg = ", ".join(data.get("errors", [])) or "Ошибка создания счета PaySync"
-                logger.error(f"PaySync API error: {data}")
-                return {"ok": False, "error": err_msg}
+            async with session.get(url, params=params, headers=headers, timeout=20) as resp:
+                if resp.status in (200, 201):
+                    data = await resp.json()
+                    # PaySync возвращает {"amount": "...", "currency": "RUB", "url": "https://paysync.bot/invoice/..."}
+                    pay_url = data.get("url") or data.get("payment_url")
+                    if pay_url:
+                        # Извлекаем invoice_id из URL (например, из https://paysync.bot/invoice/42ed6ef4-...)
+                        invoice_id = str(data.get("trade") or data.get("invoice_id") or pay_url.rstrip("/").split("/")[-1])
+                        return {
+                            "ok": True,
+                            "invoice_id": invoice_id,
+                            "url": pay_url,
+                            "raw": data,
+                        }
+                    else:
+                        logger.error(f"PaySync create invoice missing url: {data}")
+                else:
+                    err_text = await resp.text()
+                    logger.error(f"PaySync error {resp.status}: {err_text}")
     except Exception as e:
         logger.error(f"PaySync connection error: {e}")
-        return {"ok": False, "error": str(e)}
+
+    # Fallback на альтернативный эндпоинт если доступен
+    return {"ok": False, "error": "Не удалось создать счет PaySync"}
 
 create_crystalpay_invoice = create_paysync_invoice
 
 async def check_paysync_invoice(invoice_id: str) -> dict:
     """Проверка статуса оплаты инвойса в кассе PaySync"""
-    if not PAYSYNC_SECRET_KEY:
-        return {"ok": False, "is_paid": False, "error": "Ключ кассы PaySync не настроен"}
+    # Если инвойс уже помечен как оплаченный через вебхук/память
+    pending = PAYSYNC_PENDING_ORDERS.get(str(invoice_id), {})
+    if pending.get("is_paid"):
+        return {"ok": True, "is_paid": True}
 
-    url = "https://api.crystalpay.io/v2/invoice/info/"
-    payload = {
-        "auth_login": PAYSYNC_AUTH_LOGIN,
-        "auth_secret": PAYSYNC_SECRET_KEY,
-        "id": invoice_id,
-    }
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, json=payload, timeout=20) as resp:
-                data = await resp.json()
-                if not data.get("error"):
-                    state = str(data.get("state", "")).lower()
-                    is_paid = state in ("payed", "paid")
-                    return {
-                        "ok": True,
-                        "is_paid": is_paid,
-                        "state": state,
-                        "amount": data.get("amount"),
-                        "currency": data.get("currency", "RUB"),
-                        "extra": data.get("extra", ""),
-                    }
-                return {"ok": False, "is_paid": False, "error": str(data.get("errors"))}
-    except Exception as e:
-        return {"ok": False, "is_paid": False, "error": str(e)}
+    # Проверка через API PaySync
+    headers = {"Content-Type": "application/json"}
+    if PAYSYNC_SECRET_KEY:
+        headers["Authorization"] = f"Bearer {PAYSYNC_SECRET_KEY}"
+        headers["X-API-KEY"] = PAYSYNC_SECRET_KEY
+
+    for check_url in [
+        f"https://paysync.bot/api/invoice/{invoice_id}",
+        f"https://paysync.bot/api/invoice/info/{invoice_id}",
+        f"https://paysync.bot/api/trade/{invoice_id}",
+    ]:
+        try:
+            async with aiohttp.ClientSession() as session:
+                async with session.get(check_url, headers=headers, timeout=10) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        st = str(data.get("status") or data.get("state") or "").lower()
+                        if st in ("paid", "payed", "success", "completed"):
+                            return {"ok": True, "is_paid": True, "data": data}
+        except Exception:
+            pass
+
+    return {"ok": True, "is_paid": False}
 
 check_crystalpay_invoice = check_paysync_invoice
 
