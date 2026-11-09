@@ -117,7 +117,7 @@ class BotDB:
                     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
-            # Гарантируем структуру таблицы transactions в Neon
+            # Гарантируем структуру таблицы transactions в Neon (каждая команда изолирована)
             for stmt in [
                 "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS id SERIAL;",
                 "ALTER TABLE transactions ADD COLUMN IF NOT EXISTS order_id TEXT;",
