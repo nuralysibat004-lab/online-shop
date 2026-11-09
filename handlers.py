@@ -45,10 +45,15 @@ REFERRAL_MIN_AMOUNT = 300  # Бонус 50 звезд начисляется п�
 ADMIN_IDS = [int(x.strip()) for x in ALLOWED_ADMIN_IDS.split(",") if x.strip().isdigit()]
 ADMIN_ID = 7461353872
 
-# Настройки CrystalPAY (СБП и банковские карты РФ)
-CRYSTAL_AUTH_LOGIN = os.getenv("CRYSTAL_AUTH_LOGIN", "gumstarsshop")
-CRYSTAL_SECRET_KEY = os.getenv("CRYSTAL_SECRET_KEY", "")
-CRYSTAL_CASH_NAME = os.getenv("CRYSTAL_CASH_NAME", "GumStars")
+# Настройки PaySync (СБП и банковские карты РФ)
+PAYSYNC_AUTH_LOGIN = os.getenv("PAYSYNC_AUTH_LOGIN") or os.getenv("PAYSYNC_LOGIN") or os.getenv("CRYSTAL_AUTH_LOGIN", "gumstarsshop")
+PAYSYNC_SECRET_KEY = os.getenv("PAYSYNC_SECRET_KEY") or os.getenv("PAYSYNC_SECRET") or os.getenv("CRYSTAL_SECRET_KEY") or os.getenv("CRYSTAL_SECRET", "")
+PAYSYNC_CASH_NAME = os.getenv("PAYSYNC_CASH_NAME") or os.getenv("CRYSTAL_CASH_NAME", "GumStars")
+
+# Совместимость со старыми именами
+CRYSTAL_AUTH_LOGIN = PAYSYNC_AUTH_LOGIN
+CRYSTAL_SECRET_KEY = PAYSYNC_SECRET_KEY
+CRYSTAL_CASH_NAME = PAYSYNC_CASH_NAME
 
 cryptopay = AioCryptoPay(token=os.getenv("CRYPTO_BOT_TOKEN"), network=Networks.MAIN_NET)
 FRAGMENT_API_URL = os.getenv("FRAGMENT_API_URL", "https://api.fragment-api.com/api/v1/partner")
@@ -63,18 +68,19 @@ admin_bot = (
 
 rt = Router()
 bot_db = BotDB(DATABASE)
-CRYSTAL_PENDING_ORDERS = {}
+PAYSYNC_PENDING_ORDERS = {}
+CRYSTAL_PENDING_ORDERS = PAYSYNC_PENDING_ORDERS
 
-async def create_crystalpay_invoice(amount: float, description: str, extra: str = "") -> dict:
-    """Создание ссылки на оплату через CrystalPAY (СБП и банковские карты РФ)"""
-    if not CRYSTAL_SECRET_KEY:
-        logger.warning("CRYSTAL_SECRET_KEY не настроен в переменных окружения Render!")
-        return {"ok": False, "error": "Ключ кассы не настроен"}
+async def create_paysync_invoice(amount: float, description: str, extra: str = "") -> dict:
+    """Создание ссылки на оплату по СБП через кассу PaySync"""
+    if not PAYSYNC_SECRET_KEY:
+        logger.warning("PAYSYNC_SECRET_KEY не настроен в переменных окружения Render!")
+        return {"ok": False, "error": "Ключ кассы PaySync не настроен"}
 
     url = "https://api.crystalpay.io/v2/invoice/create/"
     payload = {
-        "auth_login": CRYSTAL_AUTH_LOGIN,
-        "auth_secret": CRYSTAL_SECRET_KEY,
+        "auth_login": PAYSYNC_AUTH_LOGIN,
+        "auth_secret": PAYSYNC_SECRET_KEY,
         "amount": amount,
         "type": "purchase",
         "description": description[:120],
@@ -92,22 +98,24 @@ async def create_crystalpay_invoice(amount: float, description: str, extra: str 
                         "invoice_id": data.get("id"),
                         "url": data.get("url"),
                     }
-                err_msg = ", ".join(data.get("errors", [])) or "Ошибка создания счета"
-                logger.error(f"CrystalPAY API error: {data}")
+                err_msg = ", ".join(data.get("errors", [])) or "Ошибка создания счета PaySync"
+                logger.error(f"PaySync API error: {data}")
                 return {"ok": False, "error": err_msg}
     except Exception as e:
-        logger.error(f"CrystalPAY connection error: {e}")
+        logger.error(f"PaySync connection error: {e}")
         return {"ok": False, "error": str(e)}
 
-async def check_crystalpay_invoice(invoice_id: str) -> dict:
-    """Проверка статуса оплаты инвойса в CrystalPAY"""
-    if not CRYSTAL_SECRET_KEY:
-        return {"ok": False, "is_paid": False, "error": "Ключ кассы не настроен"}
+create_crystalpay_invoice = create_paysync_invoice
+
+async def check_paysync_invoice(invoice_id: str) -> dict:
+    """Проверка статуса оплаты инвойса в кассе PaySync"""
+    if not PAYSYNC_SECRET_KEY:
+        return {"ok": False, "is_paid": False, "error": "Ключ кассы PaySync не настроен"}
 
     url = "https://api.crystalpay.io/v2/invoice/info/"
     payload = {
-        "auth_login": CRYSTAL_AUTH_LOGIN,
-        "auth_secret": CRYSTAL_SECRET_KEY,
+        "auth_login": PAYSYNC_AUTH_LOGIN,
+        "auth_secret": PAYSYNC_SECRET_KEY,
         "id": invoice_id,
     }
     try:
@@ -116,7 +124,6 @@ async def check_crystalpay_invoice(invoice_id: str) -> dict:
                 data = await resp.json()
                 if not data.get("error"):
                     state = str(data.get("state", "")).lower()
-                    # В CrystalPAY v2 оплаченный статус = "payed"
                     is_paid = state in ("payed", "paid")
                     return {
                         "ok": True,
@@ -129,6 +136,8 @@ async def check_crystalpay_invoice(invoice_id: str) -> dict:
                 return {"ok": False, "is_paid": False, "error": str(data.get("errors"))}
     except Exception as e:
         return {"ok": False, "is_paid": False, "error": str(e)}
+
+check_crystalpay_invoice = check_paysync_invoice
 
 async def notify_admin_order(bot_obj: Bot, order_type: str, product_title: str, buyer, amount_str: str, method: str, status: str, extra: str = "", order_id: str = ""):
     """Мгновенное уведомление администратору о заказе на ID 7461353872"""
@@ -694,7 +703,7 @@ async def test_cancel_command(message: Message):
         order_id=test_ord_id,
         user_id=user_id,
         amount=250.0,
-        provider="СБП (CrystalPAY)",
+        provider="СБП (PaySync)",
         status="cancelled"
     )
     await message.answer(
@@ -2610,25 +2619,25 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     logger.error(f"Ошибка создания счета CryptoBot: {e}")
 
   buttons = []
-  crystal_id = None
+  paysync_id = None
 
-  # 2. СБП подключаем ТОЛЬКО для Telegram Stars! В Premium и Крипте СБП отключен.
+  # 2. СБП (PaySync) подключаем ТОЛЬКО для Telegram Stars! В Premium и Крипте СБП отключен.
   if is_stars:
-    crystal_res = await create_crystalpay_invoice(
+    paysync_res = await create_paysync_invoice(
         amount=rub_price,
         description=f"{product_info['title']} для {target_user}",
         extra=f"{product_key}:{target_user}",
     )
-    if crystal_res.get("ok") and crystal_res.get("url"):
-      crystal_id = str(crystal_res.get("invoice_id"))
-      CRYSTAL_PENDING_ORDERS[crystal_id] = {
+    if paysync_res.get("ok") and paysync_res.get("url"):
+      paysync_id = str(paysync_res.get("invoice_id"))
+      PAYSYNC_PENDING_ORDERS[paysync_id] = {
           "prod_key": product_key,
           "target_user": target_user,
           "rub_price": rub_price,
           "cryptobot_id": str(cryptobot_id) if cryptobot_id else None,
       }
-      buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=crystal_res["url"])])
-      buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_cryst_{crystal_id}")])
+      buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=paysync_res["url"])])
+      buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_psync_{paysync_id}")])
 
   # Кнопки CryptoBot
   if cryptobot_url:
@@ -2643,8 +2652,8 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   except Exception:
     pass
 
-  active_order_id = crystal_id or (str(cryptobot_id) if cryptobot_id else f"ORD_{random.randint(100000, 999999)}")
-  provider_name = "СБП (CrystalPAY)" if (is_stars and crystal_id) else "CryptoBot"
+  active_order_id = paysync_id or (str(cryptobot_id) if cryptobot_id else f"ORD_{random.randint(100000, 999999)}")
+  provider_name = "СБП (PaySync)" if (is_stars and paysync_id) else "CryptoBot"
   try:
     bot_db.add_transaction(
         order_id=active_order_id,
@@ -2671,7 +2680,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
         f"• <b>По СБП (карты РФ):</b> <b>{rub_price} ₽</b>\n"
         f"• <b>Через CryptoBot (со скидкой):</b> <b>{usdt_amount} USDT (~{crypto_rub} ₽)</b>\n\n"
         "<b>Выберите способ оплаты ниже:</b>\n"
-        "• <b>🇷🇺 СБП (Система быстрых платежей)</b> — моментально через любой банк РФ\n"
+        "• <b>🇷🇺 СБП (PaySync)</b> — моментально через любой банк РФ\n"
         "• <b>💎 CryptoBot</b> — оплата со скидкой в USDT прямо в Telegram\n\n"
         "<i>Если передумали — нажмите кнопку «❌ Отменить заказ».</i>"
     )
@@ -2690,14 +2699,21 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   await state.clear()
 
 
+@rt.callback_query(F.data.startswith("chk_psync_"))
+@rt.callback_query(F.data.startswith("checkpaysync_"))
 @rt.callback_query(F.data.startswith("chk_cryst_"))
 @rt.callback_query(F.data.startswith("checkcrystal_"))
-async def check_crystalpay_payment_callback(callback: CallbackQuery):
-  """Проверка статуса оплаты через кассу CrystalPAY (СБП)"""
+async def check_paysync_payment_callback(callback: CallbackQuery):
+  """Проверка статуса оплаты через кассу PaySync (СБП)"""
   raw_data = callback.data
-  if raw_data.startswith("chk_cryst_"):
+  if raw_data.startswith("chk_psync_"):
+    invoice_id = raw_data.replace("chk_psync_", "")
+    pending = PAYSYNC_PENDING_ORDERS.get(str(invoice_id), {})
+    prod_key = pending.get("prod_key", "")
+    target_user = pending.get("target_user", f"@{callback.from_user.username}" if callback.from_user.username else str(callback.from_user.id))
+  elif raw_data.startswith("chk_cryst_"):
     invoice_id = raw_data.replace("chk_cryst_", "")
-    pending = CRYSTAL_PENDING_ORDERS.get(str(invoice_id), {})
+    pending = PAYSYNC_PENDING_ORDERS.get(str(invoice_id), {})
     prod_key = pending.get("prod_key", "")
     target_user = pending.get("target_user", f"@{callback.from_user.username}" if callback.from_user.username else str(callback.from_user.id))
   else:
@@ -2706,7 +2722,7 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
     prod_key = parts[2] if len(parts) > 2 else ""
     target_user = parts[3] if len(parts) > 3 else f"@{callback.from_user.username}"
 
-  status_data = await check_crystalpay_invoice(invoice_id)
+  status_data = await check_paysync_invoice(invoice_id)
 
   # Если prod_key не был найден в памяти, достаем его из extra, сохраненного в счете
   if (not prod_key or prod_key not in PRICES) and status_data.get("extra"):
@@ -2808,11 +2824,11 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
     # Уведомление администратора об успешной оплате
     await notify_admin_order(
         bot_obj=callback.bot,
-        order_type="ОПЛАЧЕНО ПО СБП (CrystalPAY) 🎉",
+        order_type="ОПЛАЧЕНО ПО СБП (PaySync) 🎉",
         product_title=product_info["title"],
         buyer=buyer,
         amount_str=f"{rub_price} ₽",
-        method="СБП (CrystalPAY)",
+        method="СБП (PaySync)",
         status="✅ Оплата получена, требует ручной выдачи!" if not is_sbp_fulfilled else "✅ Оплата получена, заказ выполнен!",
         extra=f"Получатель: {target_user} | Инвойс: #{invoice_id}",
     )
@@ -2844,9 +2860,9 @@ async def check_crystalpay_payment_callback(callback: CallbackQuery):
     # Сохраняем оплаченный ордер в базу данных: completed если выдан автоматически, иначе in_progress
     sbp_final_status = "completed" if is_sbp_fulfilled else "in_progress"
     try:
-      bot_db.add_transaction(order_id=invoice_id, user_id=buyer.id, amount=rub_price, provider="СБП (CrystalPAY)", status=sbp_final_status)
+      bot_db.add_transaction(order_id=invoice_id, user_id=buyer.id, amount=rub_price, provider="СБП (PaySync)", status=sbp_final_status)
     except Exception as err:
-      logger.error(f"Failed to record transaction for CrystalPAY: {err}")
+      logger.error(f"Failed to record transaction for PaySync: {err}")
 
     # Публикация в канал отзывов
     await publish_to_reviews_channel(
