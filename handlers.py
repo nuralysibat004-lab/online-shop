@@ -74,28 +74,47 @@ bot_db = BotDB(DATABASE)
 PAYSYNC_PENDING_ORDERS = {}
 CRYSTAL_PENDING_ORDERS = PAYSYNC_PENDING_ORDERS
 
-async def create_paysync_invoice(amount: float, description: str, extra: str = "") -> dict:
-    """Создание ссылки на оплату по СБП через официальный API PaySync (REDIRECT)"""
+async def create_paysync_invoice(amount: float, description: str, extra: str = "", usdt_amount: float = None) -> dict:
+    """Создание ссылки на оплату по СБП через официальный API PaySync"""
     client_id = PAYSYNC_CLIENT_ID or "7461353872"
-    amt_int = int(round(amount))
-    
-    # 1. Основной официальный метод PaySync REDIRECT: https://paysync.bot/create_invoice/{client_id}/{amount}/{currency}?data={extra}
-    url = f"https://paysync.bot/create_invoice/{client_id}/{amt_int}/RUB"
-    params = {"data": extra[:120]}
+    amt_rub = float(amount)
+    usdt_val = float(usdt_amount) if usdt_amount and float(usdt_amount) >= 1.5 else max(1.5, round(amt_rub / 81.0, 2))
+
     headers = {"Content-Type": "application/json"}
     if PAYSYNC_SECRET_KEY:
         headers["Authorization"] = f"Bearer {PAYSYNC_SECRET_KEY}"
         headers["X-API-KEY"] = PAYSYNC_SECRET_KEY
 
+    # 1. Запрос к роуту payinvoice (активен и 100% возвращает 200 OK с инвойсом)
+    payinvoice_url = f"https://paysync.bot/api/payinvoice?user_id={client_id}&amount={usdt_val}"
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(url, params=params, headers=headers, timeout=20) as resp:
+            async with session.get(payinvoice_url, headers=headers, timeout=15) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    pay_url = data.get("payment_url") or data.get("url")
+                    invoice_id = str(data.get("invoice_id") or data.get("trade") or "")
+                    if pay_url:
+                        return {
+                            "ok": True,
+                            "invoice_id": invoice_id or f"PS_{random.randint(100000, 999999)}",
+                            "url": pay_url,
+                            "raw": data,
+                        }
+    except Exception as e:
+        logger.warning(f"PaySync payinvoice error: {e}")
+
+    # 2. Фолбэк на роут create_invoice
+    amt_int = int(round(amt_rub))
+    url = f"https://paysync.bot/create_invoice/{client_id}/{amt_int}/RUB"
+    params = {"data": extra[:120]}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(url, params=params, headers=headers, timeout=15) as resp:
                 if resp.status in (200, 201):
                     data = await resp.json()
-                    # PaySync возвращает {"amount": "...", "currency": "RUB", "url": "https://paysync.bot/invoice/..."}
                     pay_url = data.get("url") or data.get("payment_url")
                     if pay_url:
-                        # Извлекаем invoice_id из URL (например, из https://paysync.bot/invoice/42ed6ef4-...)
                         invoice_id = str(data.get("trade") or data.get("invoice_id") or pay_url.rstrip("/").split("/")[-1])
                         return {
                             "ok": True,
@@ -103,15 +122,9 @@ async def create_paysync_invoice(amount: float, description: str, extra: str = "
                             "url": pay_url,
                             "raw": data,
                         }
-                    else:
-                        logger.error(f"PaySync create invoice missing url: {data}")
-                else:
-                    err_text = await resp.text()
-                    logger.error(f"PaySync error {resp.status}: {err_text}")
     except Exception as e:
-        logger.error(f"PaySync connection error: {e}")
+        logger.error(f"PaySync create_invoice fallback error: {e}")
 
-    # Fallback на альтернативный эндпоинт если доступен
     return {"ok": False, "error": "Не удалось создать счет PaySync"}
 
 create_crystalpay_invoice = create_paysync_invoice
@@ -1766,28 +1779,31 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 GRAM — 1.36 USDT (125 ₽)", callback_data="prod_crypto_ton_1")],
-            [InlineKeyboardButton(text="3 GRAM — 4.09 USDT (375 ₽)", callback_data="prod_crypto_ton_3")],
-            [InlineKeyboardButton(text="5 GRAM — 6.82 USDT (625 ₽)", callback_data="prod_crypto_ton_5")],
-            [InlineKeyboardButton(text="7 GRAM — 9.55 USDT (875 ₽)", callback_data="prod_crypto_ton_7")],
-            [InlineKeyboardButton(text="10 GRAM — 13.64 USDT (1250 ₽)", callback_data="prod_crypto_ton_10")],
+            [InlineKeyboardButton(text="💎 1 GRAM — 1.36 USDT / 125 ₽", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="💎 3 GRAM — 4.09 USDT / 375 ₽", callback_data="prod_crypto_ton_3")],
+            [InlineKeyboardButton(text="💎 5 GRAM — 6.82 USDT / 625 ₽", callback_data="prod_crypto_ton_5")],
+            [InlineKeyboardButton(text="💎 7 GRAM — 9.55 USDT / 875 ₽", callback_data="prod_crypto_ton_7")],
+            [InlineKeyboardButton(text="💎 10 GRAM — 13.64 USDT / 1250 ₽", callback_data="prod_crypto_ton_10")],
             [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
     )
+    msg_text = "<b>💎 Выберите количество GRAM\n(Сеть TON):</b>"
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 USDT — 78 ⭐ (98 ₽)", callback_data="prod_crypto_usdt_1")],
-            [InlineKeyboardButton(text="3 USDT — 234 ⭐ (294 ₽)", callback_data="prod_crypto_usdt_3")],
-            [InlineKeyboardButton(text="5 USDT — 385 ⭐ (490 ₽)", callback_data="prod_crypto_usdt_5")],
-            [InlineKeyboardButton(text="7 USDT — 532 ⭐ (686 ₽)", callback_data="prod_crypto_usdt_7")],
-            [InlineKeyboardButton(text="10 USDT — 750 ⭐ (980 ₽)", callback_data="prod_crypto_usdt_10")],
+            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 98 ₽", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 294 ₽", callback_data="prod_crypto_usdt_3")],
+            [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 490 ₽", callback_data="prod_crypto_usdt_5")],
+            [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 686 ₽", callback_data="prod_crypto_usdt_7")],
+            [InlineKeyboardButton(text="💲 10 USDT — 750 ⭐ / 980 ₽", callback_data="prod_crypto_usdt_10")],
             [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
     )
-  await safe_edit(callback, f"<b>📦 Выберите количество {coin} (Сеть: {network}):</b>", kb)
+    msg_text = "<b>💲 Выберите количество USDT\n(Сеть TON):</b>"
+
+  await safe_edit(callback, msg_text, kb)
   await callback.answer()
 
 
@@ -1815,29 +1831,31 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 GRAM — 1.36 USDT (125 ₽)", callback_data="prod_crypto_ton_1")],
-            [InlineKeyboardButton(text="3 GRAM — 4.09 USDT (375 ₽)", callback_data="prod_crypto_ton_3")],
-            [InlineKeyboardButton(text="5 GRAM — 6.82 USDT (625 ₽)", callback_data="prod_crypto_ton_5")],
-            [InlineKeyboardButton(text="7 GRAM — 9.55 USDT (875 ₽)", callback_data="prod_crypto_ton_7")],
-            [InlineKeyboardButton(text="10 GRAM — 13.64 USDT (1250 ₽)", callback_data="prod_crypto_ton_10")],
+            [InlineKeyboardButton(text="💎 1 GRAM — 1.36 USDT / 125 ₽", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="💎 3 GRAM — 4.09 USDT / 375 ₽", callback_data="prod_crypto_ton_3")],
+            [InlineKeyboardButton(text="💎 5 GRAM — 6.82 USDT / 625 ₽", callback_data="prod_crypto_ton_5")],
+            [InlineKeyboardButton(text="💎 7 GRAM — 9.55 USDT / 875 ₽", callback_data="prod_crypto_ton_7")],
+            [InlineKeyboardButton(text="💎 10 GRAM — 13.64 USDT / 1250 ₽", callback_data="prod_crypto_ton_10")],
             [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
     )
+    msg_text = "<b>💎 Выберите количество GRAM\n(Сеть TON):</b>"
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="1 USDT — 78 ⭐ (98 ₽)", callback_data="prod_crypto_usdt_1")],
-            [InlineKeyboardButton(text="3 USDT — 234 ⭐ (294 ₽)", callback_data="prod_crypto_usdt_3")],
-            [InlineKeyboardButton(text="5 USDT — 385 ⭐ (490 ₽)", callback_data="prod_crypto_usdt_5")],
-            [InlineKeyboardButton(text="7 USDT — 532 ⭐ (686 ₽)", callback_data="prod_crypto_usdt_7")],
-            [InlineKeyboardButton(text="10 USDT — 750 ⭐ (980 ₽)", callback_data="prod_crypto_usdt_10")],
+            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 98 ₽", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 294 ₽", callback_data="prod_crypto_usdt_3")],
+            [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 490 ₽", callback_data="prod_crypto_usdt_5")],
+            [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 686 ₽", callback_data="prod_crypto_usdt_7")],
+            [InlineKeyboardButton(text="💲 10 USDT — 750 ⭐ / 980 ₽", callback_data="prod_crypto_usdt_10")],
             [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
     )
+    msg_text = "<b>💲 Выберите количество USDT\n(Сеть TON):</b>"
 
-  await safe_edit(callback, f"<b>📦 Выберите количество {coin} (Сеть: {network}):</b>", kb)
+  await safe_edit(callback, msg_text, kb)
   await callback.answer()
 
 
@@ -1935,6 +1953,7 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
         amount=rub_price,
         description=f"Покупка {product_info['title']} ({network})",
         extra=f"{prod_key}:{target_user}",
+        usdt_amount=usdt_amount,
     )
     if paysync_res.get("ok") and paysync_res.get("url"):
       paysync_id = str(paysync_res.get("invoice_id"))
@@ -1981,26 +2000,34 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
 
   kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-  methods_text = (
-      "• <b>🇷🇺 СБП (PaySync)</b> — картой любого банка РФ\n"
-      "• <b>⭐ Telegram Stars</b> — моментальный обмен за звёзды Telegram"
-      if is_stable else
-      "• <b>🇷🇺 СБП (PaySync)</b> — картой любого банка РФ\n"
-      "• <b>💎 CryptoBot</b> — моментально в USDT/TON прямо в Telegram"
-  )
-
-  order_text = (
-      "<b>✅ Заказ криптовалюты успешно сформирован!</b>\n\n"
-      f"📦 Товар: <b>{product_info['title']}</b>\n"
-      f"🌐 Сеть: <b>{network}</b>\n"
-      f"👤 Получатель: <code>{target_user}</code>\n"
-      f"💰 <b>Стоимость к оплате:</b>\n"
-      f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
-      f"• <b>Альтернативно:</b> " + (f"<b>{product_info['stars']} ⭐</b>" if product_info.get("stars") else f"<b>{usdt_amount} USDT</b>") + "\n\n"
-      "<b>Способы оплаты:</b>\n"
-      f"{methods_text}\n\n"
-      "<i>Если передумали — нажмите кнопку «❌ Отменить заказ».</i>"
-  )
+  if is_stable:
+    order_text = (
+        "<b>✅ Заказ криптовалюты сформирован!</b>\n\n"
+        f"📦 Товар: <b>{product_info['title']}</b>\n"
+        f"🌐 Сеть: <b>{network}</b>\n"
+        f"👤 Получатель: <code>{target_user}</code>\n"
+        "💰 <b>Стоимость к оплате:</b>\n"
+        f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+        f"• <b>Stars:</b> <b>{product_info.get('stars', 78)} ⭐</b>\n\n"
+        "<b>Способы оплаты:</b>\n"
+        "• <b>🇷🇺 СБП</b> картой любого банка РФ\n"
+        "• <b>⭐ Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
+        "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+    )
+  else:
+    order_text = (
+        "<b>✅ Заказ криптовалюты сформирован!</b>\n\n"
+        f"📦 Товар: <b>{product_info['title']}</b>\n"
+        f"🌐 Сеть: <b>{network}</b>\n"
+        f"👤 Получатель: <code>{target_user}</code>\n"
+        "💰 <b>Стоимость к оплате:</b>\n"
+        f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+        f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT</b>\n\n"
+        "<b>Способы оплаты:</b>\n"
+        "• <b>🇷🇺 СБП</b> картой любого банка РФ\n"
+        "• <b>💎 CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
+        "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+    )
 
   await safe_edit(callback, order_text, kb)
   await state.clear()
@@ -2548,13 +2575,14 @@ async def recipient_self(callback: CallbackQuery, state: FSMContext):
     user_target = f"@{raw_target.lower()}"
   else:
     user_target = raw_target.lower() if raw_target.startswith("@") else raw_target
-  await state.update_data(target_user=user_target)
+  await state.update_data(target_user=user_target, recipient_type="self")
   await show_products(callback, state)
   await callback.answer()
 
 
 @rt.callback_query(BuySteps.choosing_recipient, F.data == "recipient_friend")
 async def recipient_friend(callback: CallbackQuery, state: FSMContext):
+  await state.update_data(recipient_type="friend")
   kb = InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")]])
   await safe_edit(
       callback,
@@ -2587,21 +2615,17 @@ async def show_products(message: Message | CallbackQuery, state: FSMContext):
   if category == "stars":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ 50 звезд — 72 / 78 ₽ (0.89 USDT)", callback_data="prod_stars_50")],
-            [InlineKeyboardButton(text="⭐ 100 звезд — 145 / 156 ₽ (1.78 USDT)", callback_data="prod_stars_100")],
-            [InlineKeyboardButton(text="⭐ 150 звезд — 218 / 234 ₽ (2.68 USDT)", callback_data="prod_stars_150")],
-            [InlineKeyboardButton(text="⭐ 250 звезд — 365 / 390 ₽ (4.47 USDT)", callback_data="prod_stars_250")],
-            [InlineKeyboardButton(text="⭐ 500 звезд — 730 / 780 ₽ (8.94 USDT)", callback_data="prod_stars_500")],
-            [InlineKeyboardButton(text="⭐ 1000 звезд — 1460 / 1560 ₽ (17.89 USDT)", callback_data="prod_stars_1000")],
-            [InlineKeyboardButton(text="⭐ 2500 звезд — 3650 / 3900 ₽ (44.72 USDT)", callback_data="prod_stars_2500")],
+            [InlineKeyboardButton(text="⭐ 50 звёзд — 72 ₽ / 78 ₽", callback_data="prod_stars_50")],
+            [InlineKeyboardButton(text="⭐ 100 звёзд — 145 ₽ / 156 ₽", callback_data="prod_stars_100")],
+            [InlineKeyboardButton(text="⭐ 150 звёзд — 218 ₽ / 234 ₽", callback_data="prod_stars_150")],
+            [InlineKeyboardButton(text="⭐ 250 звёзд — 365 ₽ / 390 ₽", callback_data="prod_stars_250")],
+            [InlineKeyboardButton(text="⭐ 500 звёзд — 730 ₽ / 780 ₽", callback_data="prod_stars_500")],
+            [InlineKeyboardButton(text="⭐ 1000 звёзд — 1460 ₽ / 1560 ₽", callback_data="prod_stars_1000")],
+            [InlineKeyboardButton(text="⭐ 2500 звёзд — 3650 ₽ / 3900 ₽", callback_data="prod_stars_2500")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
-    text = (
-        "<b>⭐ Выберите пакет звезд:</b>\n\n"
-        "💳 <i>Формат цен: <b>Криптобот (со скидкой) / СБП (банковская карта)</b></i>\n"
-        "💎 <i>Оплата через CryptoBot дешевле за счёт отсутствия комиссий!</i>"
-    )
+    text = "<b>⭐ Выберите пакет звезд:</b>"
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
@@ -2664,6 +2688,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
         amount=rub_price,
         description=f"{product_info['title']} для {target_user}",
         extra=f"{product_key}:{target_user}",
+        usdt_amount=usdt_amount,
     )
     if paysync_res.get("ok") and paysync_res.get("url"):
       paysync_id = str(paysync_res.get("invoice_id"))
@@ -2707,28 +2732,49 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
 
   kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
-  if supports_sbp:
+  recipient_type = data.get("recipient_type", "self")
+  is_friend = (recipient_type == "friend")
+
+  if is_stars:
+    status_header = "✅ Заказ Telegram Stars успешно сформирован!" if is_friend else "✅ Заказ Telegram Stars сформирован!"
+    order_msg = (
+        f"<b>{status_header}</b>\n\n"
+        f"📦 Товар: <b>{product_info['title']}</b>\n"
+        f"👤 Получатель: <code>{target_user}</code>\n\n"
+        "💰 <b>Стоимость к оплате:</b>\n"
+        f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+        f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+        "<b>Способы оплаты:</b>\n"
+        "• 🇷🇺 СБП картой любого банка РФ\n"
+        "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
+        "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+    )
+  elif product_info.get("type") == "premium":
+    status_header = "✅ Заказ Telegram Premium успешно сформирован!" if is_friend else "✅ Заказ Telegram Premium сформирован!"
+    months = product_info.get("months", 3)
+    duration_str = f"{months} месяца" if months in (3, 4) else f"{months} месяцев"
+    order_msg = (
+        f"<b>{status_header}</b>\n\n"
+        f"📦 Подписка: <b>{duration_str}</b>\n"
+        f"👤 Получатель: <code>{target_user}</code>\n"
+        "💰 <b>Стоимость к оплате:</b>\n"
+        f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT</b>\n\n"
+        "<b>Способ оплаты:</b>\n"
+        "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
+        "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+    )
+  else:
     order_msg = (
         "<b>✅ Заказ успешно сформирован!</b>\n\n"
         f"📦 Товар: <b>{product_info['title']}</b>\n"
         f"👤 Получатель: <code>{target_user}</code>\n\n"
-        f"💰 <b>Стоимость к оплате:</b>\n"
-        f"• <b>По СБП (карты РФ):</b> <b>{rub_price} ₽</b>\n"
-        f"• <b>Через CryptoBot (со скидкой):</b> <b>{usdt_amount} USDT (~{crypto_rub} ₽)</b>\n\n"
-        "<b>Выберите способ оплаты ниже:</b>\n"
-        "• <b>🇷🇺 СБП (PaySync)</b> — моментально через любой банк РФ\n"
-        "• <b>💎 CryptoBot</b> — оплата со скидкой в USDT прямо в Telegram\n\n"
-        "<i>Если передумали — нажмите кнопку «❌ Отменить заказ».</i>"
-    )
-  else:
-    order_msg = (
-        "<b>✅ Заказ Telegram Premium сформирован!</b>\n\n"
-        f"📦 Подписка: <b>{product_info['title']}</b>\n"
-        f"👤 Получатель: <code>{target_user}</code>\n"
-        f"💰 Стоимость: <b>{usdt_amount} USDT</b>\n\n"
-        "<b>Способ оплаты:</b>\n"
-        "• <b>💎 CryptoBot</b> — моментальная оплата в USDT или TON прямо в Telegram\n\n"
-        "<i>Если передумали — нажмите кнопку «❌ Отменить заказ».</i>"
+        "💰 <b>Стоимость к оплате:</b>\n"
+        f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+        f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+        "<b>Способы оплаты:</b>\n"
+        "• 🇷🇺 СБП картой любого банка РФ\n"
+        "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
+        "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
     )
 
   await safe_edit(callback, order_msg, kb)
