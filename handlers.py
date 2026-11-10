@@ -228,11 +228,11 @@ PRICES = {
     "prod_prem_3": {"amount": 1190, "usdt": 14.39, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
     "prod_prem_6": {"amount": 1590, "usdt": 19.25, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
     "prod_prem_12": {"amount": 2890, "usdt": 34.95, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
-    "prod_crypto_ton_1": {"amount": 125, "usdt": 1.36, "title": "1 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 1},
-    "prod_crypto_ton_3": {"amount": 375, "usdt": 4.09, "title": "3 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 3},
-    "prod_crypto_ton_5": {"amount": 625, "usdt": 6.82, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
-    "prod_crypto_ton_7": {"amount": 875, "usdt": 9.55, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
-    "prod_crypto_ton_10": {"amount": 1250, "usdt": 13.64, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
+    "prod_crypto_ton_1": {"amount": 117, "usdt": 1.36, "title": "1 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 1},
+    "prod_crypto_ton_3": {"amount": 351, "usdt": 4.09, "title": "3 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 3},
+    "prod_crypto_ton_5": {"amount": 585, "usdt": 6.82, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
+    "prod_crypto_ton_7": {"amount": 819, "usdt": 9.55, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
+    "prod_crypto_ton_10": {"amount": 1170, "usdt": 13.64, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
     "prod_crypto_usdt_1": {"amount": 94, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
     "prod_crypto_usdt_3": {"amount": 282, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
     "prod_crypto_usdt_5": {"amount": 470, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
@@ -1785,11 +1785,11 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 1 GRAM — 1.36 USDT / 125 ₽", callback_data="prod_crypto_ton_1")],
-            [InlineKeyboardButton(text="💎 3 GRAM — 4.09 USDT / 375 ₽", callback_data="prod_crypto_ton_3")],
-            [InlineKeyboardButton(text="💎 5 GRAM — 6.82 USDT / 625 ₽", callback_data="prod_crypto_ton_5")],
-            [InlineKeyboardButton(text="💎 7 GRAM — 9.55 USDT / 875 ₽", callback_data="prod_crypto_ton_7")],
-            [InlineKeyboardButton(text="💎 10 GRAM — 13.64 USDT / 1250 ₽", callback_data="prod_crypto_ton_10")],
+            [InlineKeyboardButton(text="💎 1 GRAM — 1.36 USDT / 117 ₽", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="💎 3 GRAM — 4.09 USDT / 351 ₽", callback_data="prod_crypto_ton_3")],
+            [InlineKeyboardButton(text="💎 5 GRAM — 6.82 USDT / 585 ₽", callback_data="prod_crypto_ton_5")],
+            [InlineKeyboardButton(text="💎 7 GRAM — 9.55 USDT / 819 ₽", callback_data="prod_crypto_ton_7")],
+            [InlineKeyboardButton(text="💎 10 GRAM — 13.64 USDT / 1170 ₽", callback_data="prod_crypto_ton_10")],
             [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -1837,11 +1837,11 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 1 GRAM — 1.36 USDT / 125 ₽", callback_data="prod_crypto_ton_1")],
-            [InlineKeyboardButton(text="💎 3 GRAM — 4.09 USDT / 375 ₽", callback_data="prod_crypto_ton_3")],
-            [InlineKeyboardButton(text="💎 5 GRAM — 6.82 USDT / 625 ₽", callback_data="prod_crypto_ton_5")],
-            [InlineKeyboardButton(text="💎 7 GRAM — 9.55 USDT / 875 ₽", callback_data="prod_crypto_ton_7")],
-            [InlineKeyboardButton(text="💎 10 GRAM — 13.64 USDT / 1250 ₽", callback_data="prod_crypto_ton_10")],
+            [InlineKeyboardButton(text="💎 1 GRAM — 1.36 USDT / 117 ₽", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="💎 3 GRAM — 4.09 USDT / 351 ₽", callback_data="prod_crypto_ton_3")],
+            [InlineKeyboardButton(text="💎 5 GRAM — 6.82 USDT / 585 ₽", callback_data="prod_crypto_ton_5")],
+            [InlineKeyboardButton(text="💎 7 GRAM — 9.55 USDT / 819 ₽", callback_data="prod_crypto_ton_7")],
+            [InlineKeyboardButton(text="💎 10 GRAM — 13.64 USDT / 1170 ₽", callback_data="prod_crypto_ton_10")],
             [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
