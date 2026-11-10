@@ -219,19 +219,19 @@ PRICES = {
     "prod_stars_500": {"amount": 780, "usdt": 8.94, "title": "500 Telegram Stars", "type": "stars", "quantity": 500},
     "prod_stars_1000": {"amount": 1560, "usdt": 17.89, "title": "1000 Telegram Stars", "type": "stars", "quantity": 1000},
     "prod_stars_2500": {"amount": 3900, "usdt": 44.72, "title": "2500 Telegram Stars", "type": "stars", "quantity": 2500},
-    "prod_prem_3": {"amount": 1150, "usdt": 14.22, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
-    "prod_prem_6": {"amount": 1850, "usdt": 22.88, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
-    "prod_prem_12": {"amount": 3300, "usdt": 40.80, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
+    "prod_prem_3": {"amount": 1190, "usdt": 14.39, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
+    "prod_prem_6": {"amount": 1590, "usdt": 19.25, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
+    "prod_prem_12": {"amount": 2890, "usdt": 34.95, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
     "prod_crypto_ton_1": {"amount": 125, "usdt": 1.36, "title": "1 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 1},
     "prod_crypto_ton_3": {"amount": 375, "usdt": 4.09, "title": "3 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 3},
     "prod_crypto_ton_5": {"amount": 625, "usdt": 6.82, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
     "prod_crypto_ton_7": {"amount": 875, "usdt": 9.55, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
     "prod_crypto_ton_10": {"amount": 1250, "usdt": 13.64, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
-    "prod_crypto_usdt_1": {"amount": 98, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
-    "prod_crypto_usdt_3": {"amount": 294, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
-    "prod_crypto_usdt_5": {"amount": 490, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
-    "prod_crypto_usdt_7": {"amount": 686, "usdt": 7, "stars": 532, "title": "7 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
-    "prod_crypto_usdt_10": {"amount": 980, "usdt": 10, "stars": 750, "title": "10 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 10},
+    "prod_crypto_usdt_1": {"amount": 94, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
+    "prod_crypto_usdt_3": {"amount": 282, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
+    "prod_crypto_usdt_5": {"amount": 470, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
+    "prod_crypto_usdt_7": {"amount": 658, "usdt": 7, "stars": 532, "title": "7 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
+    "prod_crypto_usdt_10": {"amount": 940, "usdt": 10, "stars": 750, "title": "10 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 10},
 }
 
 
@@ -1792,11 +1792,11 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 98 ₽", callback_data="prod_crypto_usdt_1")],
-            [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 294 ₽", callback_data="prod_crypto_usdt_3")],
-            [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 490 ₽", callback_data="prod_crypto_usdt_5")],
-            [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 686 ₽", callback_data="prod_crypto_usdt_7")],
-            [InlineKeyboardButton(text="💲 10 USDT — 750 ⭐ / 980 ₽", callback_data="prod_crypto_usdt_10")],
+            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 94 ₽", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 282 ₽", callback_data="prod_crypto_usdt_3")],
+            [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 470 ₽", callback_data="prod_crypto_usdt_5")],
+            [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 658 ₽", callback_data="prod_crypto_usdt_7")],
+            [InlineKeyboardButton(text="💲 10 USDT — 750 ⭐ / 940 ₽", callback_data="prod_crypto_usdt_10")],
             [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -1844,11 +1844,11 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 98 ₽", callback_data="prod_crypto_usdt_1")],
-            [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 294 ₽", callback_data="prod_crypto_usdt_3")],
-            [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 490 ₽", callback_data="prod_crypto_usdt_5")],
-            [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 686 ₽", callback_data="prod_crypto_usdt_7")],
-            [InlineKeyboardButton(text="💲 10 USDT — 750 ⭐ / 980 ₽", callback_data="prod_crypto_usdt_10")],
+            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 94 ₽", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 282 ₽", callback_data="prod_crypto_usdt_3")],
+            [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 470 ₽", callback_data="prod_crypto_usdt_5")],
+            [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 658 ₽", callback_data="prod_crypto_usdt_7")],
+            [InlineKeyboardButton(text="💲 10 USDT — 750 ⭐ / 940 ₽", callback_data="prod_crypto_usdt_10")],
             [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -2629,9 +2629,9 @@ async def show_products(message: Message | CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 3 месяца — 14.22 USDT (1150 ₽)", callback_data="prod_prem_3")],
-            [InlineKeyboardButton(text="💎 6 месяцев — 22.88 USDT (1850 ₽)", callback_data="prod_prem_6")],
-            [InlineKeyboardButton(text="💎 12 месяцев — 40.80 USDT (3300 ₽)", callback_data="prod_prem_12")],
+            [InlineKeyboardButton(text="💎 3 месяца — 14.39 USDT / 1190 ₽", callback_data="prod_prem_3")],
+            [InlineKeyboardButton(text="💎 6 месяцев — 19.25 USDT / 1590 ₽", callback_data="prod_prem_6")],
+            [InlineKeyboardButton(text="💎 12 месяцев — 34.95 USDT / 2890 ₽", callback_data="prod_prem_12")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
@@ -2661,7 +2661,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   crypto_rub = int(round(usdt_amount * 81))
 
   is_crypto = product_info.get("type") in ("crypto", "crypto_native_stars")
-  supports_sbp = is_stars or is_crypto
+  supports_sbp = True  # СБП подключен для Звёзд, Крипты и Telegram Premium!
 
   # 1. Формируем счет CryptoBot (USDT)
   cryptobot_url = None
@@ -2681,8 +2681,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   buttons = []
   paysync_id = None
 
-  # 2. СБП (PaySync) подключаем для Telegram Stars и Криптовалюты (USDT / GRAM)!
-  # В Telegram Premium СБП отключен (только CryptoBot).
+  # 2. СБП (PaySync)
   if supports_sbp:
     paysync_res = await create_paysync_invoice(
         amount=rub_price,
@@ -2703,8 +2702,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
 
   # Кнопки CryptoBot
   if cryptobot_url:
-    cb_text = f"💎 Оплатить криптой ({usdt_amount} USDT ~ {crypto_rub} ₽)" if supports_sbp else f"💎 Оплатить через CryptoBot ({usdt_amount} USDT)"
-    buttons.append([InlineKeyboardButton(text=cb_text, url=cryptobot_url)])
+    buttons.append([InlineKeyboardButton(text=f"💎 Оплатить через CryptoBot ({usdt_amount} USDT)", url=cryptobot_url)])
     buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату CryptoBot", callback_data=f"checkcrypto_{cryptobot_id}")])
 
   # 3. Сохраняем РОВНО ОДИН активный заказ со статусом in_progress!
@@ -2756,10 +2754,12 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     order_msg = (
         f"<b>{status_header}</b>\n\n"
         f"📦 Подписка: <b>{duration_str}</b>\n"
-        f"👤 Получатель: <code>{target_user}</code>\n"
+        f"👤 Получатель: <code>{target_user}</code>\n\n"
         "💰 <b>Стоимость к оплате:</b>\n"
-        f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT</b>\n\n"
-        "<b>Способ оплаты:</b>\n"
+        f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+        f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT ({rub_price} ₽)</b>\n\n"
+        "<b>Способы оплаты:</b>\n"
+        "• 🇷🇺 СБП картой любого банка РФ\n"
         "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
         "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
     )
