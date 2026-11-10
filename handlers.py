@@ -76,93 +76,66 @@ PAYSYNC_PENDING_ORDERS = {}
 CRYSTAL_PENDING_ORDERS = PAYSYNC_PENDING_ORDERS
 
 async def create_paysync_invoice(amount: float, description: str, extra: str = "", usdt_amount: float = None) -> dict:
-    """Создание ссылки на оплату по СБП через официальный веб-шлюз PaySync (редирект на страницу оплаты https://paysync.bot/invoice/...)"""
+    """Создание прямой ссылки на оплату по СБП через официальный H2H SBPQR API PaySync"""
     client_id = PAYSYNC_CLIENT_ID or "7461353872"
-    amt_int = int(round(float(amount)))
+    raw_amt = int(round(float(amount)))
+    amt_int = max(100, raw_amt)  # Минимальная сумма СБП в РФ — 100 ₽
     extra_clean = urllib.parse.quote(extra[:100]) if extra else ""
 
-    headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-        "Content-Type": "application/json",
-    }
+    headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"}
     if PAYSYNC_SECRET_KEY:
         headers["Authorization"] = f"Bearer {PAYSYNC_SECRET_KEY}"
         headers["X-API-KEY"] = PAYSYNC_SECRET_KEY
 
-    # 1. ОСНОВНОЙ РОУТ: Веб-страница оплаты по СБП и картам (возвращает https://paysync.bot/invoice/{uuid})
-    create_inv_url = f"https://paysync.bot/create_invoice/{client_id}/{amt_int}/RUB"
+    # Официальный роут СБП от PaySync (возвращает прямую ссылку на СБП НСПК в card_number)
+    url = f"https://paysync.bot/api/client{client_id}/amount{amt_int}/currencySBPQR"
     if extra_clean:
-        create_inv_url += f"?data={extra_clean}"
+        url += f"?data={extra_clean}"
 
     try:
         async with aiohttp.ClientSession() as session:
-            async with session.get(create_inv_url, headers=headers, timeout=15) as resp:
-                if resp.status in (200, 201):
-                    data = await resp.json()
-                    pay_url = data.get("url") or data.get("payment_url")
-                    trade_id = str(data.get("trade") or data.get("invoice_id") or "")
-                    if pay_url:
-                        return {
-                            "ok": True,
-                            "invoice_id": trade_id or pay_url.rstrip("/").split("/")[-1],
-                            "url": pay_url,
-                            "raw": data,
-                        }
-    except Exception as e:
-        logger.error(f"PaySync create_invoice error: {e}")
-
-    # 2. Фолбэк на payinvoice (бот-метод)
-    usdt_val = float(usdt_amount) if usdt_amount and float(usdt_amount) >= 1.5 else max(1.5, round(amt_int / 81.0, 2))
-    payinvoice_url = f"https://paysync.bot/api/payinvoice?user_id={client_id}&amount={usdt_val}"
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(payinvoice_url, headers=headers, timeout=15) as resp:
+            async with session.get(url, headers=headers, timeout=15) as resp:
                 if resp.status == 200:
                     data = await resp.json()
-                    pay_url = data.get("payment_url") or data.get("url")
-                    invoice_id = str(data.get("invoice_id") or data.get("trade") or "")
-                    if pay_url:
+                    sbp_url = data.get("card_number")
+                    trade_id = str(data.get("trade") or "")
+                    if sbp_url and sbp_url.startswith("http"):
                         return {
                             "ok": True,
-                            "invoice_id": invoice_id or f"PS_{random.randint(100000, 999999)}",
-                            "url": pay_url,
+                            "invoice_id": trade_id,
+                            "url": sbp_url,
+                            "amount": data.get("amount", amt_int),
                             "raw": data,
                         }
     except Exception as e:
-        logger.warning(f"PaySync payinvoice fallback error: {e}")
+        logger.error(f"PaySync H2H SBPQR error: {e}")
 
     return {"ok": False, "error": "Не удалось создать счет PaySync"}
 
 create_crystalpay_invoice = create_paysync_invoice
 
 async def check_paysync_invoice(invoice_id: str) -> dict:
-    """Проверка статуса оплаты инвойса в кассе PaySync"""
-    # Если инвойс уже помечен как оплаченный через вебхук/память
+    """Проверка статуса оплаты инвойса через официальный PaySync gettrans API"""
     pending = PAYSYNC_PENDING_ORDERS.get(str(invoice_id), {})
     if pending.get("is_paid"):
         return {"ok": True, "is_paid": True}
 
-    # Проверка через API PaySync
-    headers = {"Content-Type": "application/json"}
-    if PAYSYNC_SECRET_KEY:
-        headers["Authorization"] = f"Bearer {PAYSYNC_SECRET_KEY}"
-        headers["X-API-KEY"] = PAYSYNC_SECRET_KEY
+    if not invoice_id:
+        return {"ok": False, "is_paid": False}
 
-    for check_url in [
-        f"https://paysync.bot/api/invoice/{invoice_id}",
-        f"https://paysync.bot/api/invoice/info/{invoice_id}",
-        f"https://paysync.bot/api/trade/{invoice_id}",
-    ]:
-        try:
-            async with aiohttp.ClientSession() as session:
-                async with session.get(check_url, headers=headers, timeout=10) as resp:
-                    if resp.status == 200:
-                        data = await resp.json()
-                        st = str(data.get("status") or data.get("state") or "").lower()
-                        if st in ("paid", "payed", "success", "completed"):
-                            return {"ok": True, "is_paid": True, "data": data}
-        except Exception:
-            pass
+    check_url = f"https://paysync.bot/gettrans/{invoice_id}"
+    headers = {"User-Agent": "Mozilla/5.0"}
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(check_url, headers=headers, timeout=10) as resp:
+                if resp.status == 200:
+                    data = await resp.json()
+                    status = str(data.get("status") or "").lower()
+                    if status in ("paid", "payed", "success", "completed"):
+                        return {"ok": True, "is_paid": True, "data": data, "extra": data.get("data")}
+                    return {"ok": True, "is_paid": False, "status": status, "data": data}
+    except Exception as e:
+        logger.warning(f"PaySync gettrans check error ({invoice_id}): {e}")
 
     return {"ok": True, "is_paid": False}
 
