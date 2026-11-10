@@ -1926,8 +1926,8 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
   buttons = []
   paysync_id = None
 
-  # 1. Генерируем оплату по СБП через PaySync для криптовалюты (USDT и GRAM)
-  if rub_price > 0:
+  # 1. Генерируем оплату по СБП через PaySync для криптовалюты (кроме 1 USDT из-за P2P хвоста минималки)
+  if rub_price >= 150 and prod_key != "prod_crypto_usdt_1":
     paysync_res = await create_paysync_invoice(
         amount=rub_price,
         description=f"Покупка {product_info['title']} ({network})",
@@ -2641,7 +2641,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   crypto_rub = int(round(usdt_amount * 81))
 
   is_crypto = product_info.get("type") in ("crypto", "crypto_native_stars")
-  supports_sbp = True  # СБП подключен для Звёзд, Крипты и Telegram Premium!
+  supports_sbp = (product_key not in ("prod_stars_50", "prod_crypto_usdt_1") and rub_price >= 100)
 
   # 1. Формируем счет CryptoBot (USDT)
   cryptobot_url = None
