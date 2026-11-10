@@ -191,7 +191,7 @@ class BuyCryptoSteps(StatesGroup):
 
 # БОЕВЫЕ ЦЕНЫ МАГАЗИНА
 PRICES = {
-    "prod_stars_50": {"amount": 78, "usdt": 0.89, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
+    "prod_stars_50": {"amount": 100, "usdt": 0.89, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
     "prod_stars_100": {"amount": 156, "usdt": 1.78, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
     "prod_stars_150": {"amount": 234, "usdt": 2.68, "title": "150 Telegram Stars", "type": "stars", "quantity": 150},
     "prod_stars_250": {"amount": 390, "usdt": 4.47, "title": "250 Telegram Stars", "type": "stars", "quantity": 250},
@@ -206,7 +206,7 @@ PRICES = {
     "prod_crypto_ton_5": {"amount": 585, "usdt": 6.82, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
     "prod_crypto_ton_7": {"amount": 819, "usdt": 9.55, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
     "prod_crypto_ton_10": {"amount": 1170, "usdt": 13.64, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
-    "prod_crypto_usdt_1": {"amount": 94, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
+    "prod_crypto_usdt_1": {"amount": 100, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
     "prod_crypto_usdt_3": {"amount": 282, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
     "prod_crypto_usdt_5": {"amount": 470, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
     "prod_crypto_usdt_7": {"amount": 658, "usdt": 7, "stars": 532, "title": "7 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
@@ -1942,6 +1942,7 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           "rub_price": rub_price,
           "cryptobot_id": str(cryptobot_id) if cryptobot_id else None,
       }
+      asyncio.create_task(poll_paysync_payment_task(callback.bot, paysync_id, callback.from_user))
       buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=paysync_res["url"])])
       buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_psync_{paysync_id}")])
 
@@ -2676,6 +2677,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           "rub_price": rub_price,
           "cryptobot_id": str(cryptobot_id) if cryptobot_id else None,
       }
+      asyncio.create_task(poll_paysync_payment_task(callback.bot, paysync_id, callback.from_user))
       buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=paysync_res["url"])])
       buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_psync_{paysync_id}")])
 
@@ -2760,131 +2762,166 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   await state.clear()
 
 
-@rt.callback_query(F.data.startswith("chk_psync_"))
-@rt.callback_query(F.data.startswith("checkpaysync_"))
-@rt.callback_query(F.data.startswith("chk_cryst_"))
-@rt.callback_query(F.data.startswith("checkcrystal_"))
-async def check_paysync_payment_callback(callback: CallbackQuery):
-  """Проверка статуса оплаты через кассу PaySync (СБП)"""
-  raw_data = callback.data
-  if raw_data.startswith("chk_psync_"):
-    invoice_id = raw_data.replace("chk_psync_", "")
-    pending = PAYSYNC_PENDING_ORDERS.get(str(invoice_id), {})
+async def poll_paysync_payment_task(bot_obj: Bot, invoice_id: str, buyer, max_checks: int = 180, delay_sec: int = 5):
+    """Фоновая авто-проверка оплаты по СБП каждые 5 секунд в течение 15 минут"""
+    for _ in range(max_checks):
+        await asyncio.sleep(delay_sec)
+        pending = PAYSYNC_PENDING_ORDERS.get(str(invoice_id), {})
+        if pending.get("processed"):
+            break  # Заказ уже выдан вручную по кнопке или предыдущим тиком
+        status_data = await check_paysync_invoice(invoice_id)
+        if status_data.get("is_paid"):
+            await process_successful_paysync_payment(bot_obj, invoice_id, buyer, pending)
+            break
+
+
+async def process_successful_paysync_payment(bot_obj: Bot, invoice_id: str, buyer, pending: dict = None):
+    """Единый обработчик зачисления оплаты СБП (автоматически или по нажатию кнопки)"""
+    if not pending:
+        pending = PAYSYNC_PENDING_ORDERS.get(str(invoice_id), {})
+
+    if pending.get("processed"):
+        return  # Защита от двойного списания/выдачи
+    pending["processed"] = True
+    pending["is_paid"] = True
+
     prod_key = pending.get("prod_key", "")
-    target_user = pending.get("target_user", f"@{callback.from_user.username}" if callback.from_user.username else str(callback.from_user.id))
-  elif raw_data.startswith("chk_cryst_"):
-    invoice_id = raw_data.replace("chk_cryst_", "")
-    pending = PAYSYNC_PENDING_ORDERS.get(str(invoice_id), {})
-    prod_key = pending.get("prod_key", "")
-    target_user = pending.get("target_user", f"@{callback.from_user.username}" if callback.from_user.username else str(callback.from_user.id))
-  else:
-    parts = raw_data.split("_")
-    invoice_id = parts[1]
-    prod_key = parts[2] if len(parts) > 2 else ""
-    target_user = parts[3] if len(parts) > 3 else f"@{callback.from_user.username}"
+    target_user = pending.get("target_user", f"@{buyer.username}" if getattr(buyer, "username", None) else str(getattr(buyer, "id", "")))
 
-  status_data = await check_paysync_invoice(invoice_id)
+    if (not prod_key or prod_key not in PRICES):
+        status_data = await check_paysync_invoice(invoice_id)
+        if status_data.get("extra"):
+            extra_parts = status_data["extra"].split(":")
+            prod_key = extra_parts[0]
+            if len(extra_parts) > 1 and not target_user:
+                target_user = extra_parts[1]
 
-  # Если prod_key не был найден в памяти, достаем его из extra, сохраненного в счете
-  if (not prod_key or prod_key not in PRICES) and status_data.get("extra"):
-    extra_parts = status_data["extra"].split(":")
-    prod_key = extra_parts[0]
-    if len(extra_parts) > 1 and not target_user:
-      target_user = extra_parts[1]
-
-  product_info = PRICES.get(prod_key, {"title": "Товар", "amount": 0, "usdt": 0})
-  rub_price = product_info["amount"]
-
-  if status_data.get("is_paid"):
-    buyer = callback.from_user
-    buyer_label = f"@{buyer.username}" if buyer.username else html.escape(buyer.first_name or f"ID {buyer.id}")
-
+    product_info = PRICES.get(prod_key, {"title": "Товар", "amount": 0, "usdt": 0})
+    rub_price = product_info["amount"]
+    buyer_id = getattr(buyer, "id", None)
     is_sbp_fulfilled = False
 
-    # 1. Автоматическая доставка Stars через Fragment API
+    # 1. Автоматическая доставка Stars через Gramix API
     if prod_key.startswith("prod_stars_"):
-      star_qty = product_info.get("quantity", 50)
-      frag_res = await deliver_stars_via_fragment(recipient=target_user, quantity=star_qty)
+        star_qty = product_info.get("quantity", 50)
+        frag_res = await deliver_stars_via_fragment(recipient=target_user, quantity=star_qty)
 
-      if frag_res.get("ok"):
-        is_sbp_fulfilled = True
-        logger.info(f"Fragment API: {star_qty} звёзд отправлено через СБП на {target_user}")
-        await safe_edit(
-            callback,
-            "<b>✅ Оплата по СБП успешно получена! Звёзды отправлены! ⭐</b>\n\n"
-            f"📦 Товар: <b>{product_info['title']}</b>\n"
-            f"🎯 Получатель: <code>{target_user}</code>\n\n"
-            "⚡ <i>Звёзды автоматически доставлены на ваш аккаунт через Fragment API!</i>",
-            InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
-        )
-      else:
-        is_sbp_fulfilled = False
-        await safe_edit(
-            callback,
-            "<b>✅ Оплата по СБП получена!</b>\n\n"
-            f"📦 Товар: <b>{product_info['title']}</b>\n"
-            f"🎯 Получатель: <code>{target_user}</code>\n\n"
-            "⏳ <i>Заказ принят в обработку (в процессе). Звёзды поступят на ваш аккаунт в ближайшее время!</i>",
-            InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
-        )
+        if frag_res.get("ok"):
+            is_sbp_fulfilled = True
+            logger.info(f"Gramix API: {star_qty} звёзд автоматически отправлено через СБП на {target_user}")
+            if buyer_id:
+                try:
+                    await bot_obj.send_message(
+                        chat_id=buyer_id,
+                        text=(
+                            "<b>🎉 Оплата по СБП успешно получена! Звёзды отправлены! ⭐</b>\n\n"
+                            f"📦 Товар: <b>{product_info['title']}</b>\n"
+                            f"🎯 Получатель: <code>{target_user}</code>\n\n"
+                            "⚡ <i>Звёзды автоматически доставлены на ваш аккаунт через Gramix API!</i>"
+                        ),
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+                        parse_mode="HTML",
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send auto-fulfillment msg to {buyer_id}: {e}")
+        else:
+            is_sbp_fulfilled = False
+            if buyer_id:
+                try:
+                    await bot_obj.send_message(
+                        chat_id=buyer_id,
+                        text=(
+                            "<b>✅ Оплата по СБП получена!</b>\n\n"
+                            f"📦 Товар: <b>{product_info['title']}</b>\n"
+                            f"🎯 Получатель: <code>{target_user}</code>\n\n"
+                            "⏳ <i>Заказ принят в обработку (в процессе). Звёзды поступят на ваш аккаунт в ближайшее время!</i>"
+                        ),
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
+
     # 2. Telegram Premium
     elif prod_key.startswith("prod_prem_"):
-      is_sbp_fulfilled = False
-      await safe_edit(
-          callback,
-          "<b>✅ Оплата по СБП получена! Заказ передан в обработку 💎</b>\n\n"
-          f"📦 Товар: <b>{product_info['title']}</b>\n"
-          f"🎯 Получатель: <code>{target_user}</code>\n\n"
-          "⏳ <i>Администратор активирует подписку Telegram Premium в течение 5–15 минут! Заказ находится в «🔵 В процессе».</i>",
-          InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
-      )
-    # 3. Криптовалюта
-    else:
-      raw_coin = product_info.get("coin", "TON")
-      target_asset = "TON" if raw_coin in ("TON", "GRAM") else raw_coin
-      target_qty = product_info.get("qty", 1)
-
-      check_url = None
-      for pin_id in [buyer.id, None]:
-        try:
-          kwargs = {"asset": target_asset, "amount": target_qty}
-          if pin_id:
-            kwargs["pin_to_user_id"] = pin_id
-          chk = await cryptopay.create_check(**kwargs)
-          check_url = chk.bot_check_url
-          break
-        except Exception as e:
-          logger.warning(f"Не удалось выдать чек СБП с ассетом {target_asset} (pin={pin_id}): {e}")
-
-      if check_url:
-        is_sbp_fulfilled = True
-        kb = InlineKeyboardMarkup(
-            inline_keyboard=[
-                [InlineKeyboardButton(text=f"🎁 Забрать чек на {target_qty} {target_asset}", url=check_url)],
-                [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
-            ]
-        )
-        await safe_edit(
-            callback,
-            "<b>✅ Оплата по СБП получена! Ваш чек готов:</b>\n\n"
-            f"📦 Товар: <b>{product_info['title']}</b>\n\n"
-            f"👇 <b>Нажмите кнопку ниже, чтобы забрать монеты в CryptoBot:</b>",
-            kb,
-        )
-      else:
         is_sbp_fulfilled = False
-        await safe_edit(
-            callback,
-            "<b>✅ Оплата по СБП получена!</b>\n\n"
-            f"📦 Товар: <b>{product_info['title']}</b>\n"
-            f"🎯 Получатель: <code>{target_user}</code>\n\n"
-            "⏳ <i>Заказ принят! Так как баланс приложения пуст, чек будет выдан администратором вручную. Заказ сохранён в «🔵 В процессе».</i>",
-            InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
-        )
+        if buyer_id:
+            try:
+                await bot_obj.send_message(
+                    chat_id=buyer_id,
+                    text=(
+                        "<b>✅ Оплата по СБП получена! Заказ передан в обработку 💎</b>\n\n"
+                        f"📦 Товар: <b>{product_info['title']}</b>\n"
+                        f"🎯 Получатель: <code>{target_user}</code>\n\n"
+                        "⏳ <i>Администратор активирует подписку Telegram Premium в течение 5–15 минут! Заказ находится в «🔵 В процессе».</i>"
+                    ),
+                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+                    parse_mode="HTML",
+                )
+            except Exception:
+                pass
+
+    # 3. Криптовалюта (USDT / GRAM)
+    else:
+        raw_coin = product_info.get("coin", "TON")
+        target_asset = "TON" if raw_coin in ("TON", "GRAM") else raw_coin
+        target_qty = product_info.get("qty", 1)
+
+        check_url = None
+        for pin_id in [buyer_id, None]:
+            try:
+                kwargs = {"asset": target_asset, "amount": target_qty}
+                if pin_id:
+                    kwargs["pin_to_user_id"] = pin_id
+                chk = await cryptopay.create_check(**kwargs)
+                check_url = chk.bot_check_url
+                break
+            except Exception as e:
+                logger.warning(f"Не удалось выдать чек СБП с ассетом {target_asset} (pin={pin_id}): {e}")
+
+        if check_url:
+            is_sbp_fulfilled = True
+            kb = InlineKeyboardMarkup(
+                inline_keyboard=[
+                    [InlineKeyboardButton(text=f"🎁 Забрать чек на {target_qty} {target_asset}", url=check_url)],
+                    [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+                ]
+            )
+            if buyer_id:
+                try:
+                    await bot_obj.send_message(
+                        chat_id=buyer_id,
+                        text=(
+                            "<b>🎉 Оплата по СБП успешно получена! Ваш чек готов:</b>\n\n"
+                            f"📦 Товар: <b>{product_info['title']}</b>\n\n"
+                            "👇 <b>Нажмите кнопку ниже, чтобы забрать монеты в CryptoBot:</b>"
+                        ),
+                        reply_markup=kb,
+                        parse_mode="HTML",
+                    )
+                except Exception as e:
+                    logger.warning(f"Failed to send auto check msg to {buyer_id}: {e}")
+        else:
+            is_sbp_fulfilled = False
+            if buyer_id:
+                try:
+                    await bot_obj.send_message(
+                        chat_id=buyer_id,
+                        text=(
+                            "<b>✅ Оплата по СБП получена!</b>\n\n"
+                            f"📦 Товар: <b>{product_info['title']}</b>\n"
+                            f"🎯 Получатель: <code>{target_user}</code>\n\n"
+                            "⏳ <i>Заказ принят! Так как баланс приложения пуст, чек будет выдан администратором вручную. Заказ сохранён в «🔵 В процессе».</i>"
+                        ),
+                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+                        parse_mode="HTML",
+                    )
+                except Exception:
+                    pass
 
     # Уведомление администратора об успешной оплате
     await notify_admin_order(
-        bot_obj=callback.bot,
+        bot_obj=bot_obj,
         order_type="ОПЛАЧЕНО ПО СБП (PaySync) 🎉",
         product_title=product_info["title"],
         buyer=buyer,
@@ -2896,34 +2933,34 @@ async def check_paysync_payment_callback(callback: CallbackQuery):
 
     # Реферальный бонус (при покупке от 300 руб)
     try:
-      if rub_price >= REFERRAL_MIN_AMOUNT:
-        user_id = buyer.id
-        user_record = bot_db.get_user(user_id)
-        if user_record and len(user_record) > 1 and user_record[1]:
-          referrer_id = user_record[1]
-          ref_current_balance = (
-              bot_db.get_user(referrer_id)[0]
-              if bot_db.get_user(referrer_id)
-              else 0
-          )
-          new_ref_balance = ref_current_balance + REFERRAL_BONUS
-          bot_db.update_balance(referrer_id, new_ref_balance)
-          await callback.bot.send_message(
-              referrer_id,
-              f"🎉 <b>Реферальный бонус!</b>\n\n"
-              f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
-              f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
-              parse_mode="HTML",
-          )
+        if rub_price >= REFERRAL_MIN_AMOUNT and buyer_id:
+            user_record = bot_db.get_user(buyer_id)
+            if user_record and len(user_record) > 1 and user_record[1]:
+                referrer_id = user_record[1]
+                ref_current_balance = (
+                    bot_db.get_user(referrer_id)[0]
+                    if bot_db.get_user(referrer_id)
+                    else 0
+                )
+                new_ref_balance = ref_current_balance + REFERRAL_BONUS
+                bot_db.update_balance(referrer_id, new_ref_balance)
+                await bot_obj.send_message(
+                    referrer_id,
+                    f"🎉 <b>Реферальный бонус!</b>\n\n"
+                    f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
+                    f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
+                    parse_mode="HTML",
+                )
     except Exception as e:
-      logger.error(f"Ошибка начисления реферального бонуса: {e}")
+        logger.error(f"Ошибка начисления реферального бонуса: {e}")
 
     # Сохраняем оплаченный ордер в базу данных: completed если выдан автоматически, иначе in_progress
     sbp_final_status = "completed" if is_sbp_fulfilled else "in_progress"
     try:
-      bot_db.add_transaction(order_id=invoice_id, user_id=buyer.id, amount=rub_price, provider="СБП (PaySync)", status=sbp_final_status)
+        if buyer_id:
+            bot_db.add_transaction(order_id=invoice_id, user_id=buyer_id, amount=rub_price, provider="СБП (PaySync)", status=sbp_final_status)
     except Exception as err:
-      logger.error(f"Failed to record transaction for PaySync: {err}")
+        logger.error(f"Failed to record transaction for PaySync: {err}")
 
     # Публикация в канал отзывов
     await publish_to_reviews_channel(
@@ -2933,10 +2970,36 @@ async def check_paysync_payment_callback(callback: CallbackQuery):
         target_user=target_user,
         amount_rub=rub_price,
     )
-  else:
-    await callback.answer(
-        "⏳ Счет еще не оплачен. Оплатите через СБП в приложении вашего банка и нажмите кнопку снова.",
-        show_alert=True,
-    )
+
+
+@rt.callback_query(F.data.startswith("chk_psync_"))
+@rt.callback_query(F.data.startswith("checkpaysync_"))
+@rt.callback_query(F.data.startswith("chk_cryst_"))
+@rt.callback_query(F.data.startswith("checkcrystal_"))
+async def check_paysync_payment_callback(callback: CallbackQuery):
+    """Ручная кнопка проверки статуса оплаты через кассу PaySync (СБП)"""
+    raw_data = callback.data
+    if raw_data.startswith("chk_psync_"):
+        invoice_id = raw_data.replace("chk_psync_", "")
+    elif raw_data.startswith("chk_cryst_"):
+        invoice_id = raw_data.replace("chk_cryst_", "")
+    else:
+        parts = raw_data.split("_")
+        invoice_id = parts[1]
+
+    pending = PAYSYNC_PENDING_ORDERS.get(str(invoice_id), {})
+    if pending.get("processed"):
+        await callback.answer("✅ Заказ уже успешно обработан и выдан!", show_alert=True)
+        return
+
+    status_data = await check_paysync_invoice(invoice_id)
+    if status_data.get("is_paid"):
+        await process_successful_paysync_payment(callback.bot, invoice_id, callback.from_user, pending)
+        await callback.answer("✅ Оплата по СБП успешно получена!", show_alert=True)
+    else:
+        await callback.answer(
+            "⏳ Счет еще не оплачен. Оплатите через СБП в приложении вашего банка и нажмите кнопку снова.",
+            show_alert=True,
+        )
 
       
