@@ -1771,7 +1771,7 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 94 ₽", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 100 ₽", callback_data="prod_crypto_usdt_1")],
             [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 282 ₽", callback_data="prod_crypto_usdt_3")],
             [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 470 ₽", callback_data="prod_crypto_usdt_5")],
             [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 658 ₽", callback_data="prod_crypto_usdt_7")],
@@ -1823,7 +1823,7 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 94 ₽", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 100 ₽", callback_data="prod_crypto_usdt_1")],
             [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 282 ₽", callback_data="prod_crypto_usdt_3")],
             [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 470 ₽", callback_data="prod_crypto_usdt_5")],
             [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 658 ₽", callback_data="prod_crypto_usdt_7")],
@@ -2595,7 +2595,7 @@ async def show_products(message: Message | CallbackQuery, state: FSMContext):
   if category == "stars":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ 50 звёзд — 72 ₽ / 78 ₽", callback_data="prod_stars_50")],
+            [InlineKeyboardButton(text="⭐ 50 звёзд — 72 ₽ / 100 ₽", callback_data="prod_stars_50")],
             [InlineKeyboardButton(text="⭐ 100 звёзд — 145 ₽ / 156 ₽", callback_data="prod_stars_100")],
             [InlineKeyboardButton(text="⭐ 150 звёзд — 218 ₽ / 234 ₽", callback_data="prod_stars_150")],
             [InlineKeyboardButton(text="⭐ 250 звёзд — 365 ₽ / 390 ₽", callback_data="prod_stars_250")],
