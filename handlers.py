@@ -75,17 +75,43 @@ PAYSYNC_PENDING_ORDERS = {}
 CRYSTAL_PENDING_ORDERS = PAYSYNC_PENDING_ORDERS
 
 async def create_paysync_invoice(amount: float, description: str, extra: str = "", usdt_amount: float = None) -> dict:
-    """Создание ссылки на оплату по СБП через официальный API PaySync"""
+    """Создание ссылки на оплату по СБП через официальный веб-шлюз PaySync (редирект на страницу оплаты https://paysync.bot/invoice/...)"""
     client_id = PAYSYNC_CLIENT_ID or "7461353872"
-    amt_rub = float(amount)
-    usdt_val = float(usdt_amount) if usdt_amount and float(usdt_amount) >= 1.5 else max(1.5, round(amt_rub / 81.0, 2))
+    amt_int = int(round(float(amount)))
+    extra_clean = urllib.parse.quote(extra[:100]) if extra else ""
 
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "Content-Type": "application/json",
+    }
     if PAYSYNC_SECRET_KEY:
         headers["Authorization"] = f"Bearer {PAYSYNC_SECRET_KEY}"
         headers["X-API-KEY"] = PAYSYNC_SECRET_KEY
 
-    # 1. Запрос к роуту payinvoice (активен и 100% возвращает 200 OK с инвойсом)
+    # 1. ОСНОВНОЙ РОУТ: Веб-страница оплаты по СБП и картам (возвращает https://paysync.bot/invoice/{uuid})
+    create_inv_url = f"https://paysync.bot/create_invoice/{client_id}/{amt_int}/RUB"
+    if extra_clean:
+        create_inv_url += f"?data={extra_clean}"
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.get(create_inv_url, headers=headers, timeout=15) as resp:
+                if resp.status in (200, 201):
+                    data = await resp.json()
+                    pay_url = data.get("url") or data.get("payment_url")
+                    trade_id = str(data.get("trade") or data.get("invoice_id") or "")
+                    if pay_url:
+                        return {
+                            "ok": True,
+                            "invoice_id": trade_id or pay_url.rstrip("/").split("/")[-1],
+                            "url": pay_url,
+                            "raw": data,
+                        }
+    except Exception as e:
+        logger.error(f"PaySync create_invoice error: {e}")
+
+    # 2. Фолбэк на payinvoice (бот-метод)
+    usdt_val = float(usdt_amount) if usdt_amount and float(usdt_amount) >= 1.5 else max(1.5, round(amt_int / 81.0, 2))
     payinvoice_url = f"https://paysync.bot/api/payinvoice?user_id={client_id}&amount={usdt_val}"
     try:
         async with aiohttp.ClientSession() as session:
@@ -102,28 +128,7 @@ async def create_paysync_invoice(amount: float, description: str, extra: str = "
                             "raw": data,
                         }
     except Exception as e:
-        logger.warning(f"PaySync payinvoice error: {e}")
-
-    # 2. Фолбэк на роут create_invoice
-    amt_int = int(round(amt_rub))
-    url = f"https://paysync.bot/create_invoice/{client_id}/{amt_int}/RUB"
-    params = {"data": extra[:120]}
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.post(url, params=params, headers=headers, timeout=15) as resp:
-                if resp.status in (200, 201):
-                    data = await resp.json()
-                    pay_url = data.get("url") or data.get("payment_url")
-                    if pay_url:
-                        invoice_id = str(data.get("trade") or data.get("invoice_id") or pay_url.rstrip("/").split("/")[-1])
-                        return {
-                            "ok": True,
-                            "invoice_id": invoice_id,
-                            "url": pay_url,
-                            "raw": data,
-                        }
-    except Exception as e:
-        logger.error(f"PaySync create_invoice fallback error: {e}")
+        logger.warning(f"PaySync payinvoice fallback error: {e}")
 
     return {"ok": False, "error": "Не удалось создать счет PaySync"}
 
