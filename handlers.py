@@ -1758,7 +1758,7 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 1 GRAM — 1.36 USDT / 117 ₽", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="💎 1 GRAM — 1.36 USDT", callback_data="prod_crypto_ton_1")],
             [InlineKeyboardButton(text="💎 3 GRAM — 4.09 USDT / 351 ₽", callback_data="prod_crypto_ton_3")],
             [InlineKeyboardButton(text="💎 5 GRAM — 6.82 USDT / 585 ₽", callback_data="prod_crypto_ton_5")],
             [InlineKeyboardButton(text="💎 7 GRAM — 9.55 USDT / 819 ₽", callback_data="prod_crypto_ton_7")],
@@ -1810,7 +1810,7 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 1 GRAM — 1.36 USDT / 117 ₽", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="💎 1 GRAM — 1.36 USDT", callback_data="prod_crypto_ton_1")],
             [InlineKeyboardButton(text="💎 3 GRAM — 4.09 USDT / 351 ₽", callback_data="prod_crypto_ton_3")],
             [InlineKeyboardButton(text="💎 5 GRAM — 6.82 USDT / 585 ₽", callback_data="prod_crypto_ton_5")],
             [InlineKeyboardButton(text="💎 7 GRAM — 9.55 USDT / 819 ₽", callback_data="prod_crypto_ton_7")],
@@ -1926,8 +1926,8 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
   buttons = []
   paysync_id = None
 
-  # 1. Генерируем оплату по СБП через PaySync для криптовалюты (все пакеты от 100 ₽, включая 1 GRAM 117 ₽)
-  if rub_price >= 100 and prod_key not in ("prod_crypto_usdt_1", "prod_stars_50"):
+  # 1. Генерируем оплату по СБП через PaySync для криптовалюты (исключаем 1 USDT, 50 Stars и 1 GRAM)
+  if rub_price >= 100 and prod_key not in ("prod_crypto_usdt_1", "prod_stars_50", "prod_crypto_ton_1"):
     paysync_res = await create_paysync_invoice(
         amount=rub_price,
         description=f"Покупка {product_info['title']} ({network})",
