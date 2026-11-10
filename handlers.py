@@ -1926,8 +1926,8 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
   buttons = []
   paysync_id = None
 
-  # 1. Генерируем оплату по СБП через PaySync для криптовалюты (кроме 1 USDT из-за P2P хвоста минималки)
-  if rub_price >= 150 and prod_key != "prod_crypto_usdt_1":
+  # 1. Генерируем оплату по СБП через PaySync для криптовалюты (все пакеты от 100 ₽, включая 1 GRAM 117 ₽)
+  if rub_price >= 100 and prod_key not in ("prod_crypto_usdt_1", "prod_stars_50"):
     paysync_res = await create_paysync_invoice(
         amount=rub_price,
         description=f"Покупка {product_info['title']} ({network})",
@@ -1981,33 +1981,59 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
   kb = InlineKeyboardMarkup(inline_keyboard=buttons)
 
   if is_stable:
-    order_text = (
-        "<b>✅ Заказ криптовалюты сформирован!</b>\n\n"
-        f"📦 Товар: <b>{product_info['title']}</b>\n"
-        f"🌐 Сеть: <b>{network}</b>\n"
-        f"👤 Получатель: <code>{target_user}</code>\n"
-        "💰 <b>Стоимость к оплате:</b>\n"
-        f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
-        f"• <b>Stars:</b> <b>{product_info.get('stars', 78)} ⭐</b>\n\n"
-        "<b>Способы оплаты:</b>\n"
-        "• <b>🇷🇺 СБП</b> картой любого банка РФ\n"
-        "• <b>⭐ Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
-        "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
-    )
+    if paysync_id:
+      order_text = (
+          "<b>✅ Заказ криптовалюты сформирован!</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"🌐 Сеть: <b>{network}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+          f"• <b>Stars:</b> <b>{product_info.get('stars', 78)} ⭐</b>\n\n"
+          "<b>Способы оплаты:</b>\n"
+          "• <b>🇷🇺 СБП</b> картой любого банка РФ\n"
+          "• <b>⭐ Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
+    else:
+      order_text = (
+          "<b>✅ Заказ криптовалюты сформирован!</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"🌐 Сеть: <b>{network}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>Stars:</b> <b>{product_info.get('stars', 78)} ⭐</b>\n\n"
+          "<b>Способ оплаты:</b>\n"
+          "• ⭐ <b>Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
   else:
-    order_text = (
-        "<b>✅ Заказ криптовалюты сформирован!</b>\n\n"
-        f"📦 Товар: <b>{product_info['title']}</b>\n"
-        f"🌐 Сеть: <b>{network}</b>\n"
-        f"👤 Получатель: <code>{target_user}</code>\n"
-        "💰 <b>Стоимость к оплате:</b>\n"
-        f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
-        f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT</b>\n\n"
-        "<b>Способы оплаты:</b>\n"
-        "• <b>🇷🇺 СБП</b> картой любого банка РФ\n"
-        "• <b>💎 CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
-        "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
-    )
+    if paysync_id:
+      order_text = (
+          "<b>✅ Заказ криптовалюты сформирован!</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"🌐 Сеть: <b>{network}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+          f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT</b>\n\n"
+          "<b>Способы оплаты:</b>\n"
+          "• <b>🇷🇺 СБП</b> картой любого банка РФ\n"
+          "• <b>💎 CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
+    else:
+      order_text = (
+          "<b>✅ Заказ криптовалюты сформирован!</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"🌐 Сеть: <b>{network}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT</b>\n\n"
+          "<b>Способ оплаты:</b>\n"
+          "• <b>💎 CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
 
   await safe_edit(callback, order_text, kb)
   await state.clear()
@@ -2716,47 +2742,83 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
 
   if is_stars:
     status_header = "✅ Заказ Telegram Stars успешно сформирован!" if is_friend else "✅ Заказ Telegram Stars сформирован!"
-    order_msg = (
-        f"<b>{status_header}</b>\n\n"
-        f"📦 Товар: <b>{product_info['title']}</b>\n"
-        f"👤 Получатель: <code>{target_user}</code>\n\n"
-        "💰 <b>Стоимость к оплате:</b>\n"
-        f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
-        f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
-        "<b>Способы оплаты:</b>\n"
-        "• 🇷🇺 СБП картой любого банка РФ\n"
-        "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
-        "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
-    )
+    if paysync_id:
+      order_msg = (
+          f"<b>{status_header}</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+          f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+          "<b>Способы оплаты:</b>\n"
+          "• 🇷🇺 СБП картой любого банка РФ\n"
+          "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
+    else:
+      order_msg = (
+          f"<b>{status_header}</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+          "<b>Способ оплаты:</b>\n"
+          "• 💎 <b>CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
   elif product_info.get("type") == "premium":
     status_header = "✅ Заказ Telegram Premium успешно сформирован!" if is_friend else "✅ Заказ Telegram Premium сформирован!"
     months = product_info.get("months", 3)
     duration_str = f"{months} месяца" if months in (3, 4) else f"{months} месяцев"
-    order_msg = (
-        f"<b>{status_header}</b>\n\n"
-        f"📦 Подписка: <b>{duration_str}</b>\n"
-        f"👤 Получатель: <code>{target_user}</code>\n\n"
-        "💰 <b>Стоимость к оплате:</b>\n"
-        f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
-        f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT ({rub_price} ₽)</b>\n\n"
-        "<b>Способы оплаты:</b>\n"
-        "• 🇷🇺 СБП картой любого банка РФ\n"
-        "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
-        "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
-    )
+    if paysync_id:
+      order_msg = (
+          f"<b>{status_header}</b>\n\n"
+          f"📦 Подписка: <b>{duration_str}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+          f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT ({rub_price} ₽)</b>\n\n"
+          "<b>Способы оплаты:</b>\n"
+          "• 🇷🇺 СБП картой любого банка РФ\n"
+          "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
+    else:
+      order_msg = (
+          f"<b>{status_header}</b>\n\n"
+          f"📦 Подписка: <b>{duration_str}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT ({rub_price} ₽)</b>\n\n"
+          "<b>Способ оплаты:</b>\n"
+          "• 💎 <b>CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
   else:
-    order_msg = (
-        "<b>✅ Заказ успешно сформирован!</b>\n\n"
-        f"📦 Товар: <b>{product_info['title']}</b>\n"
-        f"👤 Получатель: <code>{target_user}</code>\n\n"
-        "💰 <b>Стоимость к оплате:</b>\n"
-        f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
-        f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
-        "<b>Способы оплаты:</b>\n"
-        "• 🇷🇺 СБП картой любого банка РФ\n"
-        "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
-        "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
-    )
+    if paysync_id:
+      order_msg = (
+          "<b>✅ Заказ успешно сформирован!</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+          f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+          "<b>Способы оплаты:</b>\n"
+          "• 🇷🇺 СБП картой любого банка РФ\n"
+          "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
+    else:
+      order_msg = (
+          "<b>✅ Заказ успешно сформирован!</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+          "<b>Способ оплаты:</b>\n"
+          "• 💎 <b>CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
 
   await safe_edit(callback, order_msg, kb)
   await state.clear()
