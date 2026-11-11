@@ -1758,7 +1758,7 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 1 GRAM — 1.50 USDT / 130 ₽", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="💎 1 GRAM — 1.50 USDT", callback_data="prod_crypto_ton_1")],
             [InlineKeyboardButton(text="💎 3 GRAM — 4.50 USDT / 390 ₽", callback_data="prod_crypto_ton_3")],
             [InlineKeyboardButton(text="💎 5 GRAM — 7.50 USDT / 650 ₽", callback_data="prod_crypto_ton_5")],
             [InlineKeyboardButton(text="💎 7 GRAM — 10.50 USDT / 910 ₽", callback_data="prod_crypto_ton_7")],
@@ -1810,7 +1810,7 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   if coin == "TON":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 1 GRAM — 1.50 USDT / 130 ₽", callback_data="prod_crypto_ton_1")],
+            [InlineKeyboardButton(text="💎 1 GRAM — 1.50 USDT", callback_data="prod_crypto_ton_1")],
             [InlineKeyboardButton(text="💎 3 GRAM — 4.50 USDT / 390 ₽", callback_data="prod_crypto_ton_3")],
             [InlineKeyboardButton(text="💎 5 GRAM — 7.50 USDT / 650 ₽", callback_data="prod_crypto_ton_5")],
             [InlineKeyboardButton(text="💎 7 GRAM — 10.50 USDT / 910 ₽", callback_data="prod_crypto_ton_7")],
