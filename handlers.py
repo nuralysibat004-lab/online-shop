@@ -191,13 +191,13 @@ class BuyCryptoSteps(StatesGroup):
 
 # БОЕВЫЕ ЦЕНЫ МАГАЗИНА
 PRICES = {
-    "prod_stars_50": {"amount": 78, "usdt": 0.89, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
-    "prod_stars_100": {"amount": 156, "usdt": 1.78, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
-    "prod_stars_150": {"amount": 234, "usdt": 2.68, "title": "150 Telegram Stars", "type": "stars", "quantity": 150},
-    "prod_stars_250": {"amount": 390, "usdt": 4.47, "title": "250 Telegram Stars", "type": "stars", "quantity": 250},
-    "prod_stars_500": {"amount": 780, "usdt": 8.94, "title": "500 Telegram Stars", "type": "stars", "quantity": 500},
-    "prod_stars_1000": {"amount": 1560, "usdt": 17.89, "title": "1000 Telegram Stars", "type": "stars", "quantity": 1000},
-    "prod_stars_2500": {"amount": 3900, "usdt": 44.72, "title": "2500 Telegram Stars", "type": "stars", "quantity": 2500},
+    "prod_stars_50": {"amount": 73, "crypto_rub": 70, "usdt": 0.86, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
+    "prod_stars_100": {"amount": 146, "crypto_rub": 140, "usdt": 1.73, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
+    "prod_stars_150": {"amount": 219, "crypto_rub": 210, "usdt": 2.59, "title": "150 Telegram Stars", "type": "stars", "quantity": 150},
+    "prod_stars_250": {"amount": 365, "crypto_rub": 350, "usdt": 4.32, "title": "250 Telegram Stars", "type": "stars", "quantity": 250},
+    "prod_stars_500": {"amount": 730, "crypto_rub": 700, "usdt": 8.64, "title": "500 Telegram Stars", "type": "stars", "quantity": 500},
+    "prod_stars_1000": {"amount": 1460, "crypto_rub": 1400, "usdt": 17.28, "title": "1000 Telegram Stars", "type": "stars", "quantity": 1000},
+    "prod_stars_2500": {"amount": 3650, "crypto_rub": 3500, "usdt": 43.21, "title": "2500 Telegram Stars", "type": "stars", "quantity": 2500},
     "prod_prem_3": {"amount": 1190, "usdt": 14.39, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
     "prod_prem_6": {"amount": 1590, "usdt": 19.25, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
     "prod_prem_12": {"amount": 2890, "usdt": 34.95, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
@@ -2623,13 +2623,13 @@ async def show_products(message: Message | CallbackQuery, state: FSMContext):
   if category == "stars":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ 50 звёзд — 72 ₽", callback_data="prod_stars_50")],
-            [InlineKeyboardButton(text="⭐ 100 звёзд — 145 ₽ / 156 ₽", callback_data="prod_stars_100")],
-            [InlineKeyboardButton(text="⭐ 150 звёзд — 218 ₽ / 234 ₽", callback_data="prod_stars_150")],
-            [InlineKeyboardButton(text="⭐ 250 звёзд — 365 ₽ / 390 ₽", callback_data="prod_stars_250")],
-            [InlineKeyboardButton(text="⭐ 500 звёзд — 730 ₽ / 780 ₽", callback_data="prod_stars_500")],
-            [InlineKeyboardButton(text="⭐ 1000 звёзд — 1460 ₽ / 1560 ₽", callback_data="prod_stars_1000")],
-            [InlineKeyboardButton(text="⭐ 2500 звёзд — 3650 ₽ / 3900 ₽", callback_data="prod_stars_2500")],
+            [InlineKeyboardButton(text="⭐ 50 звёзд — 70 ₽", callback_data="prod_stars_50")],
+            [InlineKeyboardButton(text="⭐ 100 звёзд — 140 ₽ / 146 ₽", callback_data="prod_stars_100")],
+            [InlineKeyboardButton(text="⭐ 150 звёзд — 210 ₽ / 219 ₽", callback_data="prod_stars_150")],
+            [InlineKeyboardButton(text="⭐ 250 звёзд — 350 ₽ / 365 ₽", callback_data="prod_stars_250")],
+            [InlineKeyboardButton(text="⭐ 500 звёзд — 700 ₽ / 730 ₽", callback_data="prod_stars_500")],
+            [InlineKeyboardButton(text="⭐ 1000 звёзд — 1400 ₽ / 1460 ₽", callback_data="prod_stars_1000")],
+            [InlineKeyboardButton(text="⭐ 2500 звёзд — 3500 ₽ / 3650 ₽", callback_data="prod_stars_2500")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
@@ -2666,7 +2666,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   rub_price = product_info["amount"]
   usdt_amount = product_info["usdt"]
   is_stars = product_info.get("type") == "stars"
-  crypto_rub = int(round(usdt_amount * 81))
+  crypto_rub = product_info.get("crypto_rub") or int(round(usdt_amount * 81))
 
   is_crypto = product_info.get("type") in ("crypto", "crypto_native_stars")
   supports_sbp = (product_key not in ("prod_stars_50", "prod_crypto_usdt_1") and rub_price >= 100)
