@@ -1927,9 +1927,10 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
 
   buttons = []
   paysync_id = None
+  supports_sbp_crypto = (rub_price >= 100 and prod_key not in ("prod_crypto_usdt_1", "prod_stars_50", "prod_crypto_ton_1"))
 
   # 1. Генерируем оплату по СБП через PaySync для криптовалюты (исключаем 1 USDT, 50 Stars и 1 GRAM)
-  if rub_price >= 100 and prod_key not in ("prod_crypto_usdt_1", "prod_stars_50", "prod_crypto_ton_1"):
+  if supports_sbp_crypto:
     paysync_res = await create_paysync_invoice(
         amount=rub_price,
         description=f"Покупка {product_info['title']} ({network})",
@@ -1997,6 +1998,20 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           "• <b>⭐ Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
+    elif supports_sbp_crypto:
+      order_text = (
+          "<b>✅ Заказ криптовалюты сформирован!</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"🌐 Сеть: <b>{network}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>По СБП:</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
+          f"• <b>Stars:</b> <b>{product_info.get('stars', 78)} ⭐</b>\n\n"
+          "<b>Способы оплаты:</b>\n"
+          "• <b>🇷🇺 СБП</b> картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• <b>⭐ Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
     else:
       order_text = (
           "<b>✅ Заказ криптовалюты сформирован!</b>\n\n"
@@ -2023,6 +2038,20 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           f"• <b>Cryptobot:</b> <b>{crypto_line}</b>\n\n"
           "<b>Способы оплаты:</b>\n"
           "• <b>🇷🇺 СБП</b> картой любого банка РФ\n"
+          "• <b>💎 CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
+    elif supports_sbp_crypto:
+      order_text = (
+          "<b>✅ Заказ криптовалюты сформирован!</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"🌐 Сеть: <b>{network}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>По СБП:</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
+          f"• <b>Cryptobot:</b> <b>{crypto_line}</b>\n\n"
+          "<b>Способы оплаты:</b>\n"
+          "• <b>🇷🇺 СБП</b> картой любого банка РФ <i>(техработы шлюза)</i>\n"
           "• <b>💎 CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -2672,7 +2701,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   crypto_rub = product_info.get("crypto_rub") or int(round(usdt_amount * 81))
 
   is_crypto = product_info.get("type") in ("crypto", "crypto_native_stars")
-  supports_sbp = (product_key not in ("prod_stars_50", "prod_crypto_usdt_1") and rub_price >= 100)
+  supports_sbp = (product_key not in ("prod_stars_50", "prod_crypto_usdt_1", "prod_crypto_ton_1") and rub_price >= 100)
 
   # 1. Формируем счет CryptoBot (USDT)
   cryptobot_url = None
@@ -2760,6 +2789,19 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
+    elif supports_sbp:
+      order_msg = (
+          f"<b>{status_header}</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>По СБП:</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
+          f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+          "<b>Способы оплаты:</b>\n"
+          "• 🇷🇺 СБП картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
     else:
       order_msg = (
           f"<b>{status_header}</b>\n\n"
@@ -2788,6 +2830,19 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
+    elif supports_sbp:
+      order_msg = (
+          f"<b>{status_header}</b>\n\n"
+          f"📦 Подписка: <b>{duration_str}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>По СБП:</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
+          f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+          "<b>Способы оплаты:</b>\n"
+          "• 🇷🇺 СБП картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
     else:
       order_msg = (
           f"<b>{status_header}</b>\n\n"
@@ -2810,6 +2865,19 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
           "• 🇷🇺 СБП картой любого банка РФ\n"
+          "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
+          "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
+      )
+    elif supports_sbp:
+      order_msg = (
+          "<b>✅ Заказ успешно сформирован!</b>\n\n"
+          f"📦 Товар: <b>{product_info['title']}</b>\n"
+          f"👤 Получатель: <code>{target_user}</code>\n\n"
+          "💰 <b>Стоимость к оплате:</b>\n"
+          f"• <b>По СБП:</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
+          f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+          "<b>Способы оплаты:</b>\n"
+          "• 🇷🇺 СБП картой любого банка РФ <i>(техработы шлюза)</i>\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
