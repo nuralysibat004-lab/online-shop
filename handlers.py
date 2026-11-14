@@ -76,7 +76,7 @@ PAYSYNC_PENDING_ORDERS = {}
 CRYSTAL_PENDING_ORDERS = PAYSYNC_PENDING_ORDERS
 
 async def create_paysync_invoice(amount: float, description: str, extra: str = "", usdt_amount: float = None) -> dict:
-    """Создание прямой ссылки на оплату по СБП через официальный H2H SBPQR API PaySync"""
+    """Создание оплаты через PaySync H2H API: RUBCRS (14%, диплинк+QR от 500 ₽) -> fallback SBPQR (17%)"""
     client_id = PAYSYNC_CLIENT_ID or "7461353872"
     raw_amt = int(round(float(amount)))
     amt_int = max(100, raw_amt)  # Минимальная сумма СБП в РФ — 100 ₽
@@ -87,28 +87,48 @@ async def create_paysync_invoice(amount: float, description: str, extra: str = "
         headers["Authorization"] = f"Bearer {PAYSYNC_SECRET_KEY}"
         headers["X-API-KEY"] = PAYSYNC_SECRET_KEY
 
-    # Официальный роут СБП от PaySync (возвращает прямую ссылку на СБП НСПК в card_number)
-    url = f"https://paysync.bot/api/client{client_id}/amount{amt_int}/currencySBPQR"
-    if extra_clean:
-        url += f"?data={extra_clean}"
+    # RUBCRS работает от ~500 ₽ и берёт 14% (выдаёт Диплинк + QR-код или C2C карту), SBPQR — 17%
+    currencies_to_try = ["RUBCRS", "SBPQR"] if amt_int >= 500 else ["SBPQR"]
+    card_fallback = None
 
-    try:
-        async with aiohttp.ClientSession() as session:
-            async with session.get(url, headers=headers, timeout=15) as resp:
-                if resp.status == 200:
-                    data = await resp.json()
-                    sbp_url = data.get("card_number")
-                    trade_id = str(data.get("trade") or "")
-                    if sbp_url and sbp_url.startswith("http"):
-                        return {
-                            "ok": True,
-                            "invoice_id": trade_id,
-                            "url": sbp_url,
-                            "amount": data.get("amount", amt_int),
-                            "raw": data,
-                        }
-    except Exception as e:
-        logger.error(f"PaySync H2H SBPQR error: {e}")
+    async with aiohttp.ClientSession() as session:
+        for currency in currencies_to_try:
+            url = f"https://paysync.bot/api/client{client_id}/amount{amt_int}/currency{currency}"
+            if extra_clean:
+                url += f"?data={extra_clean}"
+            try:
+                async with session.get(url, headers=headers, timeout=15) as resp:
+                    if resp.status == 200:
+                        data = await resp.json()
+                        payment_val = str(data.get("card_number") or "").strip()
+                        trade_id = str(data.get("trade") or "")
+                        if payment_val and trade_id:
+                            if payment_val.startswith("http"):
+                                return {
+                                    "ok": True,
+                                    "invoice_id": trade_id,
+                                    "url": payment_val,
+                                    "currency": currency,
+                                    "amount": data.get("amount", amt_int),
+                                    "raw": data,
+                                }
+                            elif card_fallback is None:
+                                card_fallback = {
+                                    "ok": True,
+                                    "invoice_id": trade_id,
+                                    "url": None,
+                                    "card_number": payment_val,
+                                    "bank": str(data.get("bank") or "Банк РФ"),
+                                    "card_holder": str(data.get("card_holder") or ""),
+                                    "currency": currency,
+                                    "amount": data.get("amount", amt_int),
+                                    "raw": data,
+                                }
+            except Exception as e:
+                logger.error(f"PaySync H2H {currency} error: {e}")
+
+    if card_fallback:
+        return card_fallback
 
     return {"ok": False, "error": "Не удалось создать счет PaySync"}
 
@@ -1927,9 +1947,10 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
 
   buttons = []
   paysync_id = None
+  paysync_card_note = ""
   supports_sbp_crypto = (rub_price >= 100 and prod_key not in ("prod_crypto_usdt_1", "prod_stars_50", "prod_crypto_ton_1"))
 
-  # 1. Генерируем оплату по СБП через PaySync для криптовалюты (исключаем 1 USDT, 50 Stars и 1 GRAM)
+  # 1. Генерируем оплату по СБП / РФ через PaySync для криптовалюты (исключаем 1 USDT, 50 Stars и 1 GRAM)
   if supports_sbp_crypto:
     paysync_res = await create_paysync_invoice(
         amount=rub_price,
@@ -1937,7 +1958,7 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
         extra=f"{prod_key}:{target_user}",
         usdt_amount=usdt_amount,
     )
-    if paysync_res.get("ok") and paysync_res.get("url"):
+    if paysync_res.get("ok") and (paysync_res.get("url") or paysync_res.get("card_number")):
       paysync_id = str(paysync_res.get("invoice_id"))
       PAYSYNC_PENDING_ORDERS[paysync_id] = {
           "prod_key": prod_key,
@@ -1946,7 +1967,11 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           "cryptobot_id": str(cryptobot_id) if cryptobot_id else None,
       }
       asyncio.create_task(poll_paysync_payment_task(callback.bot, paysync_id, callback.from_user))
-      buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=paysync_res["url"])])
+      if paysync_res.get("url"):
+        buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=paysync_res["url"])])
+      else:
+        holder_part = f" ({paysync_res['card_holder']})" if paysync_res.get("card_holder") else ""
+        paysync_card_note = f"\n💳 <b>Перевод по карте РФ ({paysync_res.get('bank', 'Банк РФ')}):</b> <code>{paysync_res['card_number']}</code>{holder_part}\n⚠️ <i>Переведите ровно <b>{rub_price} ₽</b> и нажмите «Проверить оплату СБП».</i>\n"
       buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_psync_{paysync_id}")])
 
   # 2. Кнопка оплаты Telegram Stars (для USDT)
@@ -2067,6 +2092,9 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           "• <b>💎 CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
+
+  if paysync_card_note:
+    order_text = order_text.replace("<b>Способы оплаты:</b>", f"{paysync_card_note}\n<b>Способы оплаты:</b>", 1)
 
   await safe_edit(callback, order_text, kb)
   await state.clear()
@@ -2720,6 +2748,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
 
   buttons = []
   paysync_id = None
+  paysync_card_note = ""
 
   # 2. СБП (PaySync)
   if supports_sbp:
@@ -2729,7 +2758,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
         extra=f"{product_key}:{target_user}",
         usdt_amount=usdt_amount,
     )
-    if paysync_res.get("ok") and paysync_res.get("url"):
+    if paysync_res.get("ok") and (paysync_res.get("url") or paysync_res.get("card_number")):
       paysync_id = str(paysync_res.get("invoice_id"))
       PAYSYNC_PENDING_ORDERS[paysync_id] = {
           "prod_key": product_key,
@@ -2738,7 +2767,11 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           "cryptobot_id": str(cryptobot_id) if cryptobot_id else None,
       }
       asyncio.create_task(poll_paysync_payment_task(callback.bot, paysync_id, callback.from_user))
-      buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=paysync_res["url"])])
+      if paysync_res.get("url"):
+        buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=paysync_res["url"])])
+      else:
+        holder_part = f" ({paysync_res['card_holder']})" if paysync_res.get("card_holder") else ""
+        paysync_card_note = f"\n💳 <b>Перевод по карте РФ ({paysync_res.get('bank', 'Банк РФ')}):</b> <code>{paysync_res['card_number']}</code>{holder_part}\n⚠️ <i>Переведите ровно <b>{rub_price} ₽</b> и нажмите «Проверить оплату СБП».</i>\n"
       buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_psync_{paysync_id}")])
 
   # Кнопки CryptoBot
@@ -2892,6 +2925,9 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           "• 💎 <b>CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
+
+  if paysync_card_note:
+    order_msg = order_msg.replace("<b>Способы оплаты:</b>", f"{paysync_card_note}\n<b>Способы оплаты:</b>", 1)
 
   await safe_edit(callback, order_msg, kb)
   await state.clear()
