@@ -141,6 +141,19 @@ class BotDB:
                     file_id TEXT NOT NULL
                 );
             """)
+            self._run("""
+                CREATE TABLE IF NOT EXISTS pending_order_meta (
+                    order_id TEXT PRIMARY KEY,
+                    user_id BIGINT,
+                    username TEXT,
+                    prod_key TEXT,
+                    target_user TEXT,
+                    rub_price NUMERIC,
+                    payment_id TEXT,
+                    paid INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+            """)
         else:
             self._run("""
                 CREATE TABLE IF NOT EXISTS users (
@@ -169,6 +182,19 @@ class BotDB:
                 CREATE TABLE IF NOT EXISTS bot_banners (
                     section_name TEXT PRIMARY KEY,
                     file_id TEXT NOT NULL
+                );
+            """)
+            self._run("""
+                CREATE TABLE IF NOT EXISTS pending_order_meta (
+                    order_id TEXT PRIMARY KEY,
+                    user_id INTEGER,
+                    username TEXT,
+                    prod_key TEXT,
+                    target_user TEXT,
+                    rub_price REAL,
+                    payment_id TEXT,
+                    paid INTEGER DEFAULT 0,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
                 );
             """)
 
@@ -347,6 +373,21 @@ class BotDB:
         except Exception as e:
             logger.error(f"add_transaction error: {e}", exc_info=True)
 
+    def get_transaction_status(self, order_id: str) -> str | None:
+        """Возвращает статус ордера из базы данных (защита от повторной выдачи после рестарта)"""
+        order_str = str(order_id)
+        try:
+            q = (
+                "SELECT status FROM transactions WHERE order_id = %s"
+                if self.is_postgres
+                else "SELECT status FROM transactions WHERE order_id = ?"
+            )
+            row = self._run(q, (order_str,), fetch="one")
+            return str(row[0]).lower() if row and row[0] else None
+        except Exception as e:
+            logger.warning(f"get_transaction_status error: {e}")
+            return None
+
     def get_user_orders(self, user_id: int, status: str = None) -> list:
         """Возвращает реальные заказы конкретного пользователя из таблицы transactions"""
         uid_str = str(user_id)
@@ -461,3 +502,67 @@ class BotDB:
         except Exception as e:
             logger.error(f"complete_order error: {e}")
             return None
+
+    def save_order_meta(self, order_id: str, user_id: int, username: str, prod_key: str, target_user: str, rub_price: float, payment_id: str = ""):
+        """Сохраняет метаданные заказа (для автовыдачи по вебхуку даже после рестарта)"""
+        try:
+            if self.is_postgres:
+                q = """
+                    INSERT INTO pending_order_meta (order_id, user_id, username, prod_key, target_user, rub_price, payment_id, paid)
+                    VALUES (%s, %s, %s, %s, %s, %s, %s, 0)
+                    ON CONFLICT (order_id) DO UPDATE SET
+                        user_id = EXCLUDED.user_id,
+                        username = EXCLUDED.username,
+                        prod_key = EXCLUDED.prod_key,
+                        target_user = EXCLUDED.target_user,
+                        rub_price = EXCLUDED.rub_price,
+                        payment_id = EXCLUDED.payment_id;
+                """
+            else:
+                q = """
+                    INSERT OR REPLACE INTO pending_order_meta (order_id, user_id, username, prod_key, target_user, rub_price, payment_id, paid)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, 0)
+                """
+            self._run(q, (str(order_id), int(user_id or 0), str(username or ""), str(prod_key or ""), str(target_user or ""), float(rub_price or 0), str(payment_id or "")))
+        except Exception as e:
+            logger.warning(f"save_order_meta error: {e}")
+
+    def get_order_meta(self, order_id: str) -> dict | None:
+        """Возвращает сохранённые метаданные заказа по order_id"""
+        try:
+            q = (
+                "SELECT order_id, user_id, username, prod_key, target_user, rub_price, payment_id, paid FROM pending_order_meta WHERE order_id = %s"
+                if self.is_postgres
+                else "SELECT order_id, user_id, username, prod_key, target_user, rub_price, payment_id, paid FROM pending_order_meta WHERE order_id = ?"
+            )
+            row = self._run(q, (str(order_id),), fetch="one")
+            if not row:
+                return None
+            return {
+                "order_id": row[0],
+                "user_id": int(row[1]) if row[1] else 0,
+                "username": row[2] or "",
+                "prod_key": row[3] or "",
+                "target_user": row[4] or "",
+                "rub_price": float(row[5] or 0),
+                "payment_id": row[6] or "",
+                "paid": bool(row[7]),
+            }
+        except Exception as e:
+            logger.warning(f"get_order_meta error: {e}")
+            return None
+
+    def mark_order_meta_paid(self, order_id: str, payment_id: str = ""):
+        """Помечает заказ как оплаченный через вебхук NicePay"""
+        try:
+            if self.is_postgres:
+                q = "UPDATE pending_order_meta SET paid = 1, payment_id = COALESCE(NULLIF(%s, ''), payment_id) WHERE order_id = %s"
+            else:
+                q = "UPDATE pending_order_meta SET paid = 1, payment_id = CASE WHEN ? != '' THEN ? ELSE payment_id END WHERE order_id = ?"
+            params = (str(payment_id or ""), str(order_id)) if self.is_postgres else (str(payment_id or ""), str(payment_id or ""), str(order_id))
+            self._run(q, params)
+        except Exception as e:
+            logger.warning(f"mark_order_meta_paid error: {e}")
+
+
+

@@ -2,6 +2,7 @@ import asyncio
 import aiohttp
 import csv
 import hashlib
+import hmac
 import html
 import json
 import logging
@@ -9,9 +10,11 @@ import os
 import random
 import re
 import string
+import time
 import urllib.parse
 import uuid
 from datetime import datetime
+from types import SimpleNamespace
 
 from aiocryptopay import AioCryptoPay, Networks
 from aiogram import Bot, F, Router, types
@@ -31,7 +34,16 @@ from aiogram.types import (
     ReplyKeyboardMarkup,
 )
 
-from config import ALLOWED_ADMIN_IDS, DATABASE, ADMIN_PASSWORD, PASSWORD
+from config import (
+    ALLOWED_ADMIN_IDS,
+    DATABASE,
+    ADMIN_PASSWORD,
+    PASSWORD,
+    NICEPAY_MERCHANT_ID,
+    NICEPAY_SECRET_KEY,
+    NICEPAY_SUCCESS_URL,
+    NICEPAY_FAIL_URL,
+)
 from db import BotDB
 
 logger = logging.getLogger(__name__)
@@ -74,9 +86,163 @@ rt = Router()
 bot_db = BotDB(DATABASE)
 PAYSYNC_PENDING_ORDERS = {}
 CRYSTAL_PENDING_ORDERS = PAYSYNC_PENDING_ORDERS
+ORDER_PROCESS_LOCKS: dict[str, asyncio.Lock] = {}
 
-async def create_paysync_invoice(amount: float, description: str, extra: str = "", usdt_amount: float = None) -> dict:
-    """Создание оплаты через PaySync H2H API: RUBCRS (14%, диплинк+QR от 500 ₽) -> fallback SBPQR (17%)"""
+
+def is_nicepay_configured() -> bool:
+    return bool(NICEPAY_MERCHANT_ID and NICEPAY_SECRET_KEY)
+
+
+def verify_nicepay_hash(params: dict, secret_key: str) -> bool:
+    """Проверка цифровой подписи SHA-256 от NicePay по официальному алгоритму ({np})"""
+    if not secret_key:
+        return False
+    received_hash = str(params.get("hash") or "").strip().lower()
+    if not received_hash:
+        return False
+    clean = {k: v for k, v in params.items() if k != "hash"}
+    sorted_values = [str(clean[k]) for k in sorted(clean.keys())]
+    sorted_values.append(secret_key)
+    hash_string = "{np}".join(sorted_values)
+    expected_hash = hashlib.sha256(hash_string.encode("utf-8")).hexdigest().lower()
+    return hmac.compare_digest(received_hash, expected_hash)
+
+
+async def create_nicepay_invoice(
+    amount: float,
+    description: str,
+    user_id: int = 0,
+    customer_label: str = "",
+) -> dict:
+    """Создание ссылки на оплату через официальный NicePay API (СБП, карты РФ, Kaspi и др.)"""
+    if not is_nicepay_configured():
+        return {"ok": False, "error": "NicePay keys not configured"}
+
+    amt_rub = max(10, int(round(float(amount))))
+    amount_kopecks = amt_rub * 100
+    order_id = f"NP_{user_id or 0}_{int(time.time())}_{random.randint(100, 999)}"[:50]
+    customer = (customer_label or f"tg_{user_id}@gumstars.bot")[:50]
+
+    payload = {
+        "merchant_id": NICEPAY_MERCHANT_ID,
+        "secret": NICEPAY_SECRET_KEY,
+        "order_id": order_id,
+        "customer": customer,
+        "amount": amount_kopecks,
+        "currency": "RUB",
+        "description": (description or "Оплата заказа GumStars")[:150],
+    }
+    if NICEPAY_SUCCESS_URL:
+        payload["success_url"] = NICEPAY_SUCCESS_URL
+    if NICEPAY_FAIL_URL:
+        payload["fail_url"] = NICEPAY_FAIL_URL
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            async with session.post(
+                "https://nicepay.io/public/api/payment",
+                json=payload,
+                timeout=15,
+            ) as resp:
+                data = await resp.json(content_type=None)
+                if data.get("status") == "success" and isinstance(data.get("data"), dict):
+                    res_data = data["data"]
+                    pay_url = str(res_data.get("link") or "").strip()
+                    payment_id = str(res_data.get("payment_id") or "").strip()
+                    if pay_url:
+                        logger.info(f"NicePay invoice created: order_id={order_id}, payment_id={payment_id}, amount={amt_rub} RUB")
+                        return {
+                            "ok": True,
+                            "provider": "nicepay",
+                            "invoice_id": order_id,
+                            "payment_id": payment_id,
+                            "url": pay_url,
+                            "amount": amt_rub,
+                            "raw": res_data,
+                        }
+                err_msg = (data.get("data") or {}).get("message") if isinstance(data, dict) else str(data)
+                logger.error(f"NicePay create payment error (HTTP {resp.status}): {err_msg}")
+                return {"ok": False, "error": str(err_msg or "NicePay API error")}
+    except Exception as e:
+        logger.error(f"NicePay request exception: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+async def handle_nicepay_webhook(bot_obj: Bot, query_params: dict) -> tuple[int, dict]:
+    """Обработчик входящих GET-уведомлений от NicePay о статусе платежа"""
+    if not is_nicepay_configured():
+        return 503, {"error": {"message": "NicePay not configured"}}
+
+    incoming_merchant = str(query_params.get("merchant_id") or "").strip()
+    if incoming_merchant and incoming_merchant != NICEPAY_MERCHANT_ID:
+        logger.warning(f"NicePay webhook merchant mismatch: {incoming_merchant}")
+        return 403, {"error": {"message": "Invalid merchant_id"}}
+
+    if not verify_nicepay_hash(query_params, NICEPAY_SECRET_KEY):
+        logger.warning(f"NicePay webhook invalid hash for order={query_params.get('order_id')}")
+        return 400, {"error": {"message": "Invalid hash"}}
+
+    result = str(query_params.get("result") or "").strip().lower()
+    order_id = str(query_params.get("order_id") or "").strip()
+    payment_id = str(query_params.get("payment_id") or "").strip()
+
+    if result == "success":
+        if not order_id:
+            return 400, {"error": {"message": "Missing order_id"}}
+
+        bot_db.mark_order_meta_paid(order_id, payment_id)
+        pending = PAYSYNC_PENDING_ORDERS.setdefault(order_id, {})
+        pending["is_paid"] = True
+        pending["provider"] = "nicepay"
+        if payment_id:
+            pending["payment_id"] = payment_id
+
+        meta = bot_db.get_order_meta(order_id) or {}
+        if not pending.get("prod_key") and meta.get("prod_key"):
+            pending["prod_key"] = meta["prod_key"]
+        if not pending.get("target_user") and meta.get("target_user"):
+            pending["target_user"] = meta["target_user"]
+        if not pending.get("rub_price") and meta.get("rub_price"):
+            pending["rub_price"] = meta["rub_price"]
+        if not pending.get("user_id") and meta.get("user_id"):
+            pending["user_id"] = meta["user_id"]
+
+        buyer_id = pending.get("user_id") or meta.get("user_id") or 0
+        username = meta.get("username") or pending.get("username") or ""
+        buyer_stub = SimpleNamespace(
+            id=int(buyer_id) if buyer_id else None,
+            username=username or None,
+            first_name="Клиент",
+        )
+
+        logger.info(f"NicePay webhook SUCCESS: order_id={order_id}, payment_id={payment_id}, user_id={buyer_id}")
+        asyncio.create_task(process_successful_paysync_payment(bot_obj, order_id, buyer_stub, pending))
+        return 200, {"result": {"message": "Success"}}
+
+    if result == "error":
+        logger.info(f"NicePay webhook ERROR status for order_id={order_id}, payment_id={payment_id}")
+        return 200, {"error": {"message": "Error"}}
+
+    return 200, {"error": {"message": "Empty"}}
+
+
+async def create_paysync_invoice(
+    amount: float,
+    description: str,
+    extra: str = "",
+    usdt_amount: float = None,
+    user_id: int = 0,
+    customer_label: str = "",
+) -> dict:
+    """Создание оплаты СБП/картой РФ: приоритетно через NicePay, иначе резервный PaySync H2H"""
+    if is_nicepay_configured():
+        return await create_nicepay_invoice(
+            amount=amount,
+            description=description,
+            user_id=user_id,
+            customer_label=customer_label,
+        )
+
     client_id = PAYSYNC_CLIENT_ID or "7461353872"
     raw_amt = int(round(float(amount)))
     amt_int = max(100, raw_amt)  # Минимальная сумма СБП в РФ — 100 ₽
@@ -106,6 +272,7 @@ async def create_paysync_invoice(amount: float, description: str, extra: str = "
                             if payment_val.startswith("http"):
                                 return {
                                     "ok": True,
+                                    "provider": "paysync",
                                     "invoice_id": trade_id,
                                     "url": payment_val,
                                     "currency": currency,
@@ -115,6 +282,7 @@ async def create_paysync_invoice(amount: float, description: str, extra: str = "
                             elif card_fallback is None:
                                 card_fallback = {
                                     "ok": True,
+                                    "provider": "paysync",
                                     "invoice_id": trade_id,
                                     "url": None,
                                     "card_number": payment_val,
@@ -130,20 +298,31 @@ async def create_paysync_invoice(amount: float, description: str, extra: str = "
     if card_fallback:
         return card_fallback
 
-    return {"ok": False, "error": "Не удалось создать счет PaySync"}
+    return {"ok": False, "error": "Не удалось создать счет"}
 
 create_crystalpay_invoice = create_paysync_invoice
 
+
 async def check_paysync_invoice(invoice_id: str) -> dict:
-    """Проверка статуса оплаты инвойса через официальный PaySync gettrans API"""
-    pending = PAYSYNC_PENDING_ORDERS.get(str(invoice_id), {})
+    """Проверка статуса оплаты инвойса (NicePay webhook/DB или PaySync gettrans API)"""
+    inv_str = str(invoice_id or "")
+    pending = PAYSYNC_PENDING_ORDERS.get(inv_str, {})
     if pending.get("is_paid"):
         return {"ok": True, "is_paid": True}
 
-    if not invoice_id:
+    if not inv_str:
         return {"ok": False, "is_paid": False}
 
-    check_url = f"https://paysync.bot/gettrans/{invoice_id}"
+    # Для NicePay статус приходит через GET-обработчик /nicepay/webhook и сохраняется в БД
+    if inv_str.startswith("NP_"):
+        meta = bot_db.get_order_meta(inv_str)
+        if meta and meta.get("paid"):
+            return {"ok": True, "is_paid": True, "meta": meta}
+        if bot_db.get_transaction_status(inv_str) == "completed":
+            return {"ok": True, "is_paid": True}
+        return {"ok": True, "is_paid": False}
+
+    check_url = f"https://paysync.bot/gettrans/{inv_str}"
     headers = {"User-Agent": "Mozilla/5.0"}
     try:
         async with aiohttp.ClientSession() as session:
@@ -157,7 +336,7 @@ async def check_paysync_invoice(invoice_id: str) -> dict:
                         return {"ok": True, "is_paid": True, "data": data, "extra": data.get("data")}
                     return {"ok": True, "is_paid": False, "status": status, "data": data}
     except Exception as e:
-        logger.warning(f"PaySync gettrans check error ({invoice_id}): {e}")
+        logger.warning(f"PaySync gettrans check error ({inv_str}): {e}")
 
     return {"ok": True, "is_paid": False}
 
@@ -1950,29 +2129,48 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
   paysync_card_note = ""
   supports_sbp_crypto = (rub_price >= 100 and prod_key not in ("prod_crypto_usdt_1", "prod_stars_50", "prod_crypto_ton_1"))
 
-  # 1. Генерируем оплату по СБП / РФ через PaySync для криптовалюты (исключаем 1 USDT, 50 Stars и 1 GRAM)
+  # 1. Генерируем оплату по СБП / РФ через NicePay (или резервный PaySync) для криптовалюты
+  sbp_provider_label = "СБП / Карта (NicePay)" if is_nicepay_configured() else "СБП (PaySync)"
   if supports_sbp_crypto:
+    customer_hint = f"@{callback.from_user.username}" if callback.from_user.username else f"tg_{callback.from_user.id}@gumstars.bot"
     paysync_res = await create_paysync_invoice(
         amount=rub_price,
         description=f"Покупка {product_info['title']} ({network})",
         extra=f"{prod_key}:{target_user}",
         usdt_amount=usdt_amount,
+        user_id=callback.from_user.id,
+        customer_label=customer_hint,
     )
     if paysync_res.get("ok") and (paysync_res.get("url") or paysync_res.get("card_number")):
       paysync_id = str(paysync_res.get("invoice_id"))
+      if paysync_res.get("provider") == "nicepay":
+        sbp_provider_label = "СБП / Карта (NicePay)"
       PAYSYNC_PENDING_ORDERS[paysync_id] = {
           "prod_key": prod_key,
           "target_user": target_user,
           "rub_price": rub_price,
+          "user_id": callback.from_user.id,
+          "username": callback.from_user.username or "",
+          "provider": paysync_res.get("provider", "paysync"),
           "cryptobot_id": str(cryptobot_id) if cryptobot_id else None,
       }
+      bot_db.save_order_meta(
+          order_id=paysync_id,
+          user_id=callback.from_user.id,
+          username=callback.from_user.username or "",
+          prod_key=prod_key,
+          target_user=target_user,
+          rub_price=rub_price,
+          payment_id=str(paysync_res.get("payment_id") or ""),
+      )
       asyncio.create_task(poll_paysync_payment_task(callback.bot, paysync_id, callback.from_user))
       if paysync_res.get("url"):
-        buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=paysync_res["url"])])
+        btn_title = f"🇷🇺 Оплатить СБП / Картой ({rub_price} ₽)" if paysync_res.get("provider") == "nicepay" else f"🇷🇺 Оплатить по СБП ({rub_price} ₽)"
+        buttons.append([InlineKeyboardButton(text=btn_title, url=paysync_res["url"])])
       else:
         holder_part = f" ({paysync_res['card_holder']})" if paysync_res.get("card_holder") else ""
         paysync_card_note = f"\n💳 <b>Перевод по карте РФ ({paysync_res.get('bank', 'Банк РФ')}):</b> <code>{paysync_res['card_number']}</code>{holder_part}\n⚠️ <i>Переведите ровно <b>{rub_price} ₽</b> и нажмите «Проверить оплату СБП».</i>\n"
-      buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_psync_{paysync_id}")])
+      buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату", callback_data=f"chk_psync_{paysync_id}")])
 
   # 2. Кнопка оплаты Telegram Stars (для USDT)
   if product_info.get("stars"):
@@ -1990,7 +2188,7 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
     pass
 
   active_order_id = paysync_id or (str(cryptobot_id) if cryptobot_id else f"CRYPTO_{random.randint(100000, 999999)}")
-  provider_name = "СБП (PaySync)" if paysync_id else ("Telegram Stars" if is_stable else "CryptoBot")
+  provider_name = sbp_provider_label if paysync_id else ("Telegram Stars" if is_stable else "CryptoBot")
   try:
     bot_db.add_transaction(
         order_id=active_order_id,
@@ -2750,29 +2948,48 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   paysync_id = None
   paysync_card_note = ""
 
-  # 2. СБП (PaySync)
+  # 2. СБП / Карты (NicePay или резервный PaySync)
+  sbp_provider_label = "СБП / Карта (NicePay)" if is_nicepay_configured() else "СБП (PaySync)"
   if supports_sbp:
+    customer_hint = f"@{callback.from_user.username}" if callback.from_user.username else f"tg_{callback.from_user.id}@gumstars.bot"
     paysync_res = await create_paysync_invoice(
         amount=rub_price,
         description=f"{product_info['title']} для {target_user}",
         extra=f"{product_key}:{target_user}",
         usdt_amount=usdt_amount,
+        user_id=callback.from_user.id,
+        customer_label=customer_hint,
     )
     if paysync_res.get("ok") and (paysync_res.get("url") or paysync_res.get("card_number")):
       paysync_id = str(paysync_res.get("invoice_id"))
+      if paysync_res.get("provider") == "nicepay":
+        sbp_provider_label = "СБП / Карта (NicePay)"
       PAYSYNC_PENDING_ORDERS[paysync_id] = {
           "prod_key": product_key,
           "target_user": target_user,
           "rub_price": rub_price,
+          "user_id": callback.from_user.id,
+          "username": callback.from_user.username or "",
+          "provider": paysync_res.get("provider", "paysync"),
           "cryptobot_id": str(cryptobot_id) if cryptobot_id else None,
       }
+      bot_db.save_order_meta(
+          order_id=paysync_id,
+          user_id=callback.from_user.id,
+          username=callback.from_user.username or "",
+          prod_key=product_key,
+          target_user=target_user,
+          rub_price=rub_price,
+          payment_id=str(paysync_res.get("payment_id") or ""),
+      )
       asyncio.create_task(poll_paysync_payment_task(callback.bot, paysync_id, callback.from_user))
       if paysync_res.get("url"):
-        buttons.append([InlineKeyboardButton(text=f"🇷🇺 Оплатить по СБП ({rub_price} ₽)", url=paysync_res["url"])])
+        btn_title = f"🇷🇺 Оплатить СБП / Картой ({rub_price} ₽)" if paysync_res.get("provider") == "nicepay" else f"🇷🇺 Оплатить по СБП ({rub_price} ₽)"
+        buttons.append([InlineKeyboardButton(text=btn_title, url=paysync_res["url"])])
       else:
         holder_part = f" ({paysync_res['card_holder']})" if paysync_res.get("card_holder") else ""
         paysync_card_note = f"\n💳 <b>Перевод по карте РФ ({paysync_res.get('bank', 'Банк РФ')}):</b> <code>{paysync_res['card_number']}</code>{holder_part}\n⚠️ <i>Переведите ровно <b>{rub_price} ₽</b> и нажмите «Проверить оплату СБП».</i>\n"
-      buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату СБП", callback_data=f"chk_psync_{paysync_id}")])
+      buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату", callback_data=f"chk_psync_{paysync_id}")])
 
   # Кнопки CryptoBot
   if cryptobot_url:
@@ -2786,7 +3003,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     pass
 
   active_order_id = paysync_id or (str(cryptobot_id) if cryptobot_id else f"ORD_{random.randint(100000, 999999)}")
-  provider_name = "СБП (PaySync)" if (supports_sbp and paysync_id) else "CryptoBot"
+  provider_name = sbp_provider_label if (supports_sbp and paysync_id) else "CryptoBot"
   try:
     bot_db.add_transaction(
         order_id=active_order_id,
@@ -2947,157 +3164,114 @@ async def poll_paysync_payment_task(bot_obj: Bot, invoice_id: str, buyer, max_ch
 
 
 async def process_successful_paysync_payment(bot_obj: Bot, invoice_id: str, buyer, pending: dict = None):
-    """Единый обработчик зачисления оплаты СБП (автоматически или по нажатию кнопки)"""
+    """Единый обработчик зачисления оплаты (NicePay или PaySync — по вебхуку, автополлингу или кнопке)"""
     inv_key = str(invoice_id)
-    if not pending:
-        pending = PAYSYNC_PENDING_ORDERS.setdefault(inv_key, {})
-    else:
-        PAYSYNC_PENDING_ORDERS[inv_key] = pending
+    lock = ORDER_PROCESS_LOCKS.setdefault(inv_key, asyncio.Lock())
+    async with lock:
+        if not pending:
+            pending = PAYSYNC_PENDING_ORDERS.setdefault(inv_key, {})
+        else:
+            PAYSYNC_PENDING_ORDERS[inv_key] = pending
 
-    if pending.get("processed"):
-        return  # Защита от двойного списания/выдачи в памяти
+        if pending.get("processed"):
+            return  # Защита от двойного списания/выдачи в памяти
 
-    # Постоянная защита от повторной выдачи в БД (если Render перезапускался)
-    db_status = bot_db.get_transaction_status(inv_key)
-    if db_status == "completed":
+        # Постоянная защита от повторной выдачи в БД (если Render перезапускался)
+        db_status = bot_db.get_transaction_status(inv_key)
+        if db_status == "completed":
+            pending["processed"] = True
+            pending["is_paid"] = True
+            return
+
         pending["processed"] = True
         pending["is_paid"] = True
-        return
 
-    pending["processed"] = True
-    pending["is_paid"] = True
+        prod_key = pending.get("prod_key", "")
+        target_user = pending.get("target_user", "")
 
-    prod_key = pending.get("prod_key", "")
-    target_user = pending.get("target_user", "")
+        # Восстанавливаем метаданные из БД (если сервис перезапускался до вебхука)
+        if not prod_key or prod_key not in PRICES or not target_user:
+            meta = bot_db.get_order_meta(inv_key)
+            if meta:
+                if (not prod_key or prod_key not in PRICES) and meta.get("prod_key"):
+                    prod_key = meta["prod_key"]
+                if not target_user and meta.get("target_user"):
+                    target_user = meta["target_user"]
+                if not pending.get("user_id") and meta.get("user_id"):
+                    pending["user_id"] = meta["user_id"]
 
-    if (not prod_key or prod_key not in PRICES or not target_user):
-        status_data = await check_paysync_invoice(invoice_id)
-        if status_data.get("extra"):
-            extra_parts = status_data["extra"].split(":")
-            if not prod_key or prod_key not in PRICES:
-                prod_key = extra_parts[0]
-            if len(extra_parts) > 1 and not target_user:
-                target_user = extra_parts[1]
+        if (not prod_key or prod_key not in PRICES or not target_user) and not inv_key.startswith("NP_"):
+            status_data = await check_paysync_invoice(invoice_id)
+            if status_data.get("extra"):
+                extra_parts = status_data["extra"].split(":")
+                if not prod_key or prod_key not in PRICES:
+                    prod_key = extra_parts[0]
+                if len(extra_parts) > 1 and not target_user:
+                    target_user = extra_parts[1]
 
-    if not target_user:
-        target_user = f"@{buyer.username}" if getattr(buyer, "username", None) else str(getattr(buyer, "id", ""))
+        if not target_user:
+            target_user = f"@{buyer.username}" if getattr(buyer, "username", None) else str(getattr(buyer, "id", ""))
 
-    product_info = PRICES.get(prod_key, {"title": "Товар", "amount": 0, "usdt": 0})
-    rub_price = product_info["amount"]
-    buyer_id = getattr(buyer, "id", None)
-    is_sbp_fulfilled = False
-
-    # 1. Автоматическая доставка Stars через Gramix API
-    if prod_key.startswith("prod_stars_"):
-        star_qty = product_info.get("quantity", 50)
-        frag_res = await deliver_stars_via_fragment(recipient=target_user, quantity=star_qty)
-
-        if frag_res.get("ok"):
-            is_sbp_fulfilled = True
-            logger.info(f"Gramix API: {star_qty} звёзд автоматически отправлено через СБП на {target_user}")
-            if buyer_id:
-                try:
-                    await bot_obj.send_message(
-                        chat_id=buyer_id,
-                        text=(
-                            "<b>🎉 Оплата по СБП успешно получена! Звёзды отправлены! ⭐</b>\n\n"
-                            f"📦 Товар: <b>{product_info['title']}</b>\n"
-                            f"🎯 Получатель: <code>{target_user}</code>\n\n"
-                            "⚡ <i>Звёзды автоматически доставлены на ваш аккаунт через Gramix API!</i>"
-                        ),
-                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
-                        parse_mode="HTML",
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to send auto-fulfillment msg to {buyer_id}: {e}")
-        else:
-            is_sbp_fulfilled = False
-            if buyer_id:
-                try:
-                    await bot_obj.send_message(
-                        chat_id=buyer_id,
-                        text=(
-                            "<b>✅ Оплата по СБП получена!</b>\n\n"
-                            f"📦 Товар: <b>{product_info['title']}</b>\n"
-                            f"🎯 Получатель: <code>{target_user}</code>\n\n"
-                            "⏳ <i>Заказ принят в обработку (в процессе). Звёзды поступят на ваш аккаунт в ближайшее время!</i>"
-                        ),
-                        reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
-                        parse_mode="HTML",
-                    )
-                except Exception:
-                    pass
-
-    # 2. Telegram Premium
-    elif prod_key.startswith("prod_prem_"):
+        product_info = PRICES.get(prod_key, {"title": "Товар", "amount": 0, "usdt": 0})
+        rub_price = product_info["amount"] or pending.get("rub_price", 0)
+        buyer_id = getattr(buyer, "id", None) or pending.get("user_id")
         is_sbp_fulfilled = False
-        if buyer_id:
-            try:
-                await bot_obj.send_message(
-                    chat_id=buyer_id,
-                    text=(
-                        "<b>✅ Оплата по СБП получена! Заказ передан в обработку 💎</b>\n\n"
-                        f"📦 Товар: <b>{product_info['title']}</b>\n"
-                        f"🎯 Получатель: <code>{target_user}</code>\n\n"
-                        "⏳ <i>Администратор активирует подписку Telegram Premium в течение 5–15 минут! Заказ находится в «🔵 В процессе».</i>"
-                    ),
-                    reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
-                    parse_mode="HTML",
-                )
-            except Exception:
-                pass
+        is_nicepay_order = inv_key.startswith("NP_") or pending.get("provider") == "nicepay"
+        provider_display = "СБП / Карта (NicePay)" if is_nicepay_order else "СБП (PaySync)"
 
-    # 3. Криптовалюта (USDT / GRAM)
-    else:
-        raw_coin = product_info.get("coin", "GRAM")
-        target_asset = raw_coin
-        target_qty = product_info.get("qty", 1)
+        # 1. Автоматическая доставка Stars через Gramix API
+        if prod_key.startswith("prod_stars_"):
+            star_qty = product_info.get("quantity", 50)
+            frag_res = await deliver_stars_via_fragment(recipient=target_user, quantity=star_qty)
 
-        check_url = None
-        for pin_id in [buyer_id, None]:
-            try:
-                kwargs = {"asset": target_asset, "amount": target_qty}
-                if pin_id:
-                    kwargs["pin_to_user_id"] = pin_id
-                chk = await cryptopay.create_check(**kwargs)
-                check_url = chk.bot_check_url
-                break
-            except Exception as e:
-                logger.warning(f"Не удалось выдать чек СБП с ассетом {target_asset} (pin={pin_id}): {e}")
+            if frag_res.get("ok"):
+                is_sbp_fulfilled = True
+                logger.info(f"Gramix API: {star_qty} звёзд автоматически отправлено через {provider_display} на {target_user}")
+                if buyer_id:
+                    try:
+                        await bot_obj.send_message(
+                            chat_id=buyer_id,
+                            text=(
+                                "<b>🎉 Оплата успешно получена! Звёзды отправлены! ⭐</b>\n\n"
+                                f"📦 Товар: <b>{product_info['title']}</b>\n"
+                                f"🎯 Получатель: <code>{target_user}</code>\n\n"
+                                "⚡ <i>Звёзды автоматически доставлены на ваш аккаунт через Gramix API!</i>"
+                            ),
+                            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+                            parse_mode="HTML",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send auto-fulfillment msg to {buyer_id}: {e}")
+            else:
+                is_sbp_fulfilled = False
+                if buyer_id:
+                    try:
+                        await bot_obj.send_message(
+                            chat_id=buyer_id,
+                            text=(
+                                "<b>✅ Оплата получена!</b>\n\n"
+                                f"📦 Товар: <b>{product_info['title']}</b>\n"
+                                f"🎯 Получатель: <code>{target_user}</code>\n\n"
+                                "⏳ <i>Заказ принят в обработку (в процессе). Звёзды поступят на ваш аккаунт в ближайшее время!</i>"
+                            ),
+                            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+                            parse_mode="HTML",
+                        )
+                    except Exception:
+                        pass
 
-        if check_url:
-            is_sbp_fulfilled = True
-            kb = InlineKeyboardMarkup(
-                inline_keyboard=[
-                    [InlineKeyboardButton(text=f"🎁 Забрать чек на {target_qty} {target_asset}", url=check_url)],
-                    [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
-                ]
-            )
-            if buyer_id:
-                try:
-                    await bot_obj.send_message(
-                        chat_id=buyer_id,
-                        text=(
-                            "<b>🎉 Оплата по СБП успешно получена! Ваш чек готов:</b>\n\n"
-                            f"📦 Товар: <b>{product_info['title']}</b>\n\n"
-                            "👇 <b>Нажмите кнопку ниже, чтобы забрать монеты в CryptoBot:</b>"
-                        ),
-                        reply_markup=kb,
-                        parse_mode="HTML",
-                    )
-                except Exception as e:
-                    logger.warning(f"Failed to send auto check msg to {buyer_id}: {e}")
-        else:
+        # 2. Telegram Premium
+        elif prod_key.startswith("prod_prem_"):
             is_sbp_fulfilled = False
             if buyer_id:
                 try:
                     await bot_obj.send_message(
                         chat_id=buyer_id,
                         text=(
-                            "<b>✅ Оплата по СБП получена!</b>\n\n"
+                            "<b>✅ Оплата получена! Заказ передан в обработку 💎</b>\n\n"
                             f"📦 Товар: <b>{product_info['title']}</b>\n"
                             f"🎯 Получатель: <code>{target_user}</code>\n\n"
-                            "⏳ <i>Заказ принят! Так как баланс приложения пуст, чек будет выдан администратором вручную. Заказ сохранён в «🔵 В процессе».</i>"
+                            "⏳ <i>Администратор активирует подписку Telegram Premium в течение 5–15 минут! Заказ находится в «🔵 В процессе».</i>"
                         ),
                         reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
                         parse_mode="HTML",
@@ -3105,57 +3279,115 @@ async def process_successful_paysync_payment(bot_obj: Bot, invoice_id: str, buye
                 except Exception:
                     pass
 
-    # Уведомление администратора об успешной оплате
-    await notify_admin_order(
-        bot_obj=bot_obj,
-        order_type="ОПЛАЧЕНО ПО СБП (PaySync) 🎉",
-        product_title=product_info["title"],
-        buyer=buyer,
-        amount_str=f"{rub_price} ₽",
-        method="СБП (PaySync)",
-        status="✅ Оплата получена, требует ручной выдачи!" if not is_sbp_fulfilled else "✅ Оплата получена, заказ выполнен!",
-        extra=f"Получатель: {target_user} | Инвойс: #{invoice_id}",
-    )
+        # 3. Криптовалюта (USDT / GRAM)
+        else:
+            raw_coin = product_info.get("coin", "GRAM")
+            target_asset = raw_coin
+            target_qty = product_info.get("qty", 1)
 
-    # Реферальный бонус (при покупке от 300 руб)
-    try:
-        if rub_price >= REFERRAL_MIN_AMOUNT and buyer_id:
-            user_record = bot_db.get_user(buyer_id)
-            if user_record and len(user_record) > 1 and user_record[1]:
-                referrer_id = user_record[1]
-                ref_current_balance = (
-                    bot_db.get_user(referrer_id)[0]
-                    if bot_db.get_user(referrer_id)
-                    else 0
+            check_url = None
+            for pin_id in [buyer_id, None]:
+                try:
+                    kwargs = {"asset": target_asset, "amount": target_qty}
+                    if pin_id:
+                        kwargs["pin_to_user_id"] = pin_id
+                    chk = await cryptopay.create_check(**kwargs)
+                    check_url = chk.bot_check_url
+                    break
+                except Exception as e:
+                    logger.warning(f"Не удалось выдать чек СБП с ассетом {target_asset} (pin={pin_id}): {e}")
+
+            if check_url:
+                is_sbp_fulfilled = True
+                kb = InlineKeyboardMarkup(
+                    inline_keyboard=[
+                        [InlineKeyboardButton(text=f"🎁 Забрать чек на {target_qty} {target_asset}", url=check_url)],
+                        [InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")],
+                    ]
                 )
-                new_ref_balance = ref_current_balance + REFERRAL_BONUS
-                bot_db.update_balance(referrer_id, new_ref_balance)
-                await bot_obj.send_message(
-                    referrer_id,
-                    f"🎉 <b>Реферальный бонус!</b>\n\n"
-                    f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
-                    f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
-                    parse_mode="HTML",
-                )
-    except Exception as e:
-        logger.error(f"Ошибка начисления реферального бонуса: {e}")
+                if buyer_id:
+                    try:
+                        await bot_obj.send_message(
+                            chat_id=buyer_id,
+                            text=(
+                                "<b>🎉 Оплата успешно получена! Ваш чек готов:</b>\n\n"
+                                f"📦 Товар: <b>{product_info['title']}</b>\n\n"
+                                "👇 <b>Нажмите кнопку ниже, чтобы забрать монеты в CryptoBot:</b>"
+                            ),
+                            reply_markup=kb,
+                            parse_mode="HTML",
+                        )
+                    except Exception as e:
+                        logger.warning(f"Failed to send auto check msg to {buyer_id}: {e}")
+            else:
+                is_sbp_fulfilled = False
+                if buyer_id:
+                    try:
+                        await bot_obj.send_message(
+                            chat_id=buyer_id,
+                            text=(
+                                "<b>✅ Оплата получена!</b>\n\n"
+                                f"📦 Товар: <b>{product_info['title']}</b>\n"
+                                f"🎯 Получатель: <code>{target_user}</code>\n\n"
+                                "⏳ <i>Заказ принят! Так как баланс приложения пуст, чек будет выдан администратором вручную. Заказ сохранён в «🔵 В процессе».</i>"
+                            ),
+                            reply_markup=InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="🏠 В главное меню", callback_data="back_to_menu")]]),
+                            parse_mode="HTML",
+                        )
+                    except Exception:
+                        pass
 
-    # Сохраняем оплаченный ордер в базу данных: completed если выдан автоматически, иначе in_progress
-    sbp_final_status = "completed" if is_sbp_fulfilled else "in_progress"
-    try:
-        if buyer_id:
-            bot_db.add_transaction(order_id=invoice_id, user_id=buyer_id, amount=rub_price, provider="СБП (PaySync)", status=sbp_final_status)
-    except Exception as err:
-        logger.error(f"Failed to record transaction for PaySync: {err}")
+        # Уведомление администратора об успешной оплате
+        await notify_admin_order(
+            bot_obj=bot_obj,
+            order_type=f"ОПЛАЧЕНО ({provider_display}) 🎉",
+            product_title=product_info["title"],
+            buyer=buyer,
+            amount_str=f"{rub_price} ₽",
+            method=provider_display,
+            status="✅ Оплата получена, требует ручной выдачи!" if not is_sbp_fulfilled else "✅ Оплата получена, заказ выполнен!",
+            extra=f"Получатель: {target_user} | Инвойс: #{invoice_id}",
+        )
 
-    # Публикация в канал отзывов
-    await publish_to_reviews_channel(
-        order_id=invoice_id,
-        product_title=product_info["title"],
-        buyer=buyer,
-        target_user=target_user,
-        amount_rub=rub_price,
-    )
+        # Реферальный бонус (при покупке от 300 руб)
+        try:
+            if rub_price >= REFERRAL_MIN_AMOUNT and buyer_id:
+                user_record = bot_db.get_user(buyer_id)
+                if user_record and len(user_record) > 1 and user_record[1]:
+                    referrer_id = user_record[1]
+                    ref_current_balance = (
+                        bot_db.get_user(referrer_id)[0]
+                        if bot_db.get_user(referrer_id)
+                        else 0
+                    )
+                    new_ref_balance = ref_current_balance + REFERRAL_BONUS
+                    bot_db.update_balance(referrer_id, new_ref_balance)
+                    await bot_obj.send_message(
+                        referrer_id,
+                        f"🎉 <b>Реферальный бонус!</b>\n\n"
+                        f"Ваш приглашенный друг совершил покупку на сумму от 300 ₽!\n"
+                        f"Вам начислено <b>+{REFERRAL_BONUS} ⭐</b> на баланс.",
+                        parse_mode="HTML",
+                    )
+        except Exception as e:
+            logger.error(f"Ошибка начисления реферального бонуса: {e}")
+
+        # Сохраняем оплаченный ордер в базу данных: completed если выдан автоматически, иначе in_progress
+        sbp_final_status = "completed" if is_sbp_fulfilled else "in_progress"
+        try:
+            if buyer_id:
+                bot_db.add_transaction(order_id=invoice_id, user_id=buyer_id, amount=rub_price, provider=provider_display, status=sbp_final_status)
+        except Exception as err:
+            logger.error(f"Failed to record transaction for {provider_display}: {err}")
+
+        # Публикация в канал отзывов
+        await publish_to_reviews_channel(
+            order_id=invoice_id,
+            product_title=product_info["title"],
+            buyer=buyer,
+            target_user=target_user,
+            amount_rub=rub_price,
+        )
 
 
 @rt.callback_query(F.data.startswith("chk_psync_"))
@@ -3163,7 +3395,7 @@ async def process_successful_paysync_payment(bot_obj: Bot, invoice_id: str, buye
 @rt.callback_query(F.data.startswith("chk_cryst_"))
 @rt.callback_query(F.data.startswith("checkcrystal_"))
 async def check_paysync_payment_callback(callback: CallbackQuery):
-    """Ручная кнопка проверки статуса оплаты через кассу PaySync (СБП)"""
+    """Ручная кнопка проверки статуса оплаты через NicePay / PaySync"""
     raw_data = callback.data
     if raw_data.startswith("chk_psync_"):
         invoice_id = raw_data.replace("chk_psync_", "")
@@ -3181,11 +3413,14 @@ async def check_paysync_payment_callback(callback: CallbackQuery):
     status_data = await check_paysync_invoice(invoice_id)
     if status_data.get("is_paid"):
         await process_successful_paysync_payment(callback.bot, invoice_id, callback.from_user, pending)
-        await callback.answer("✅ Оплата по СБП успешно получена!", show_alert=True)
+        await callback.answer("✅ Оплата успешно получена!", show_alert=True)
     else:
-        await callback.answer(
-            "⏳ Счет еще не оплачен. Оплатите через СБП в приложении вашего банка и нажмите кнопку снова.",
-            show_alert=True,
+        msg_wait = (
+            "⏳ Оплата ещё не поступила. Оплатите счёт по ссылке (СБП или картой) — после оплаты бот сам сразу выдаст заказ, либо нажмите кнопку снова через пару секунд."
+            if str(invoice_id).startswith("NP_")
+            else "⏳ Счет еще не оплачен. Оплатите через СБП в приложении вашего банка и нажмите кнопку снова."
         )
+        await callback.answer(msg_wait, show_alert=True)
+
 
       
