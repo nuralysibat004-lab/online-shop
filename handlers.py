@@ -595,26 +595,26 @@ class BuyCryptoSteps(StatesGroup):
 
 # БОЕВЫЕ ЦЕНЫ МАГАЗИНА
 PRICES = {
-    "prod_stars_50": {"amount": 70, "crypto_rub": 70, "usdt": 0.86, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
-    "prod_stars_100": {"amount": 184, "crypto_rub": 140, "usdt": 1.73, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
-    "prod_stars_150": {"amount": 273, "crypto_rub": 210, "usdt": 2.59, "title": "150 Telegram Stars", "type": "stars", "quantity": 150},
-    "prod_stars_250": {"amount": 449, "crypto_rub": 350, "usdt": 4.32, "title": "250 Telegram Stars", "type": "stars", "quantity": 250},
-    "prod_stars_500": {"amount": 889, "crypto_rub": 700, "usdt": 8.64, "title": "500 Telegram Stars", "type": "stars", "quantity": 500},
-    "prod_stars_1000": {"amount": 1769, "crypto_rub": 1400, "usdt": 17.28, "title": "1000 Telegram Stars", "type": "stars", "quantity": 1000},
-    "prod_stars_2500": {"amount": 4399, "crypto_rub": 3500, "usdt": 43.21, "title": "2500 Telegram Stars", "type": "stars", "quantity": 2500},
-    "prod_prem_3": {"amount": 1399, "crypto_rub": 1190, "usdt": 14.39, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
-    "prod_prem_6": {"amount": 1859, "crypto_rub": 1590, "usdt": 19.25, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
-    "prod_prem_12": {"amount": 3359, "crypto_rub": 2890, "usdt": 34.95, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
+    "prod_stars_50": {"amount": 78, "crypto_rub": 70, "usdt": 0.86, "title": "50 Telegram Stars", "type": "stars", "quantity": 50},
+    "prod_stars_100": {"amount": 156, "crypto_rub": 140, "usdt": 1.73, "title": "100 Telegram Stars", "type": "stars", "quantity": 100},
+    "prod_stars_150": {"amount": 234, "crypto_rub": 210, "usdt": 2.59, "title": "150 Telegram Stars", "type": "stars", "quantity": 150},
+    "prod_stars_250": {"amount": 390, "crypto_rub": 350, "usdt": 4.32, "title": "250 Telegram Stars", "type": "stars", "quantity": 250},
+    "prod_stars_500": {"amount": 780, "crypto_rub": 700, "usdt": 8.64, "title": "500 Telegram Stars", "type": "stars", "quantity": 500},
+    "prod_stars_1000": {"amount": 1560, "crypto_rub": 1400, "usdt": 17.28, "title": "1000 Telegram Stars", "type": "stars", "quantity": 1000},
+    "prod_stars_2500": {"amount": 3900, "crypto_rub": 3500, "usdt": 43.21, "title": "2500 Telegram Stars", "type": "stars", "quantity": 2500},
+    "prod_prem_3": {"amount": 1250, "crypto_rub": 1190, "usdt": 14.39, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
+    "prod_prem_6": {"amount": 1690, "crypto_rub": 1590, "usdt": 19.25, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
+    "prod_prem_12": {"amount": 2900, "crypto_rub": 2890, "usdt": 34.95, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
     "prod_crypto_ton_1": {"amount": 120, "crypto_rub": 120, "usdt": 1.50, "title": "1 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 1},
-    "prod_crypto_ton_3": {"amount": 379, "crypto_rub": 360, "usdt": 4.50, "title": "3 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 3},
-    "prod_crypto_ton_5": {"amount": 629, "crypto_rub": 600, "usdt": 7.50, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
-    "prod_crypto_ton_7": {"amount": 879, "crypto_rub": 840, "usdt": 10.50, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
-    "prod_crypto_ton_10": {"amount": 1250, "crypto_rub": 1200, "usdt": 15.00, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
+    "prod_crypto_ton_3": {"amount": 360, "crypto_rub": 360, "usdt": 4.50, "title": "3 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 3},
+    "prod_crypto_ton_5": {"amount": 600, "crypto_rub": 600, "usdt": 7.50, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
+    "prod_crypto_ton_7": {"amount": 840, "crypto_rub": 840, "usdt": 10.50, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
+    "prod_crypto_ton_10": {"amount": 1200, "crypto_rub": 1200, "usdt": 15.00, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
     "prod_crypto_usdt_1": {"amount": 94, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
-    "prod_crypto_usdt_3": {"amount": 340, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
-    "prod_crypto_usdt_5": {"amount": 560, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
-    "prod_crypto_usdt_7": {"amount": 780, "usdt": 7, "stars": 532, "title": "7 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
-    "prod_crypto_usdt_10": {"amount": 1110, "usdt": 10, "stars": 750, "title": "10 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 10},
+    "prod_crypto_usdt_3": {"amount": 282, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
+    "prod_crypto_usdt_5": {"amount": 470, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
+    "prod_crypto_usdt_7": {"amount": 658, "usdt": 7, "stars": 532, "title": "7 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 7},
+    "prod_crypto_usdt_10": {"amount": 940, "usdt": 10, "stars": 750, "title": "10 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 10},
 }
 
 
@@ -2163,10 +2163,10 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="💎 1 GRAM — 120 ₽", callback_data="prod_crypto_ton_1")],
-            [InlineKeyboardButton(text="💎 3 GRAM — 360 ₽ / 379 ₽", callback_data="prod_crypto_ton_3")],
-            [InlineKeyboardButton(text="💎 5 GRAM — 600 ₽ / 629 ₽", callback_data="prod_crypto_ton_5")],
-            [InlineKeyboardButton(text="💎 7 GRAM — 840 ₽ / 879 ₽", callback_data="prod_crypto_ton_7")],
-            [InlineKeyboardButton(text="💎 10 GRAM — 1200 ₽ / 1250 ₽", callback_data="prod_crypto_ton_10")],
+            [InlineKeyboardButton(text="💎 3 GRAM — 360 ₽", callback_data="prod_crypto_ton_3")],
+            [InlineKeyboardButton(text="💎 5 GRAM — 600 ₽", callback_data="prod_crypto_ton_5")],
+            [InlineKeyboardButton(text="💎 7 GRAM — 840 ₽", callback_data="prod_crypto_ton_7")],
+            [InlineKeyboardButton(text="💎 10 GRAM — 1200 ₽", callback_data="prod_crypto_ton_10")],
             [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -2175,11 +2175,11 @@ async def select_crypto_coin(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐", callback_data="prod_crypto_usdt_1")],
-            [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 340 ₽", callback_data="prod_crypto_usdt_3")],
-            [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 560 ₽", callback_data="prod_crypto_usdt_5")],
-            [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 780 ₽", callback_data="prod_crypto_usdt_7")],
-            [InlineKeyboardButton(text="💲 10 USDT — 750 ⭐ / 1110 ₽", callback_data="prod_crypto_usdt_10")],
+            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 94 ₽", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 282 ₽", callback_data="prod_crypto_usdt_3")],
+            [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 470 ₽", callback_data="prod_crypto_usdt_5")],
+            [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 658 ₽", callback_data="prod_crypto_usdt_7")],
+            [InlineKeyboardButton(text="💲 10 USDT — 750 ⭐ / 940 ₽", callback_data="prod_crypto_usdt_10")],
             [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -2215,10 +2215,10 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
             [InlineKeyboardButton(text="💎 1 GRAM — 120 ₽", callback_data="prod_crypto_ton_1")],
-            [InlineKeyboardButton(text="💎 3 GRAM — 360 ₽ / 379 ₽", callback_data="prod_crypto_ton_3")],
-            [InlineKeyboardButton(text="💎 5 GRAM — 600 ₽ / 629 ₽", callback_data="prod_crypto_ton_5")],
-            [InlineKeyboardButton(text="💎 7 GRAM — 840 ₽ / 879 ₽", callback_data="prod_crypto_ton_7")],
-            [InlineKeyboardButton(text="💎 10 GRAM — 1200 ₽ / 1250 ₽", callback_data="prod_crypto_ton_10")],
+            [InlineKeyboardButton(text="💎 3 GRAM — 360 ₽", callback_data="prod_crypto_ton_3")],
+            [InlineKeyboardButton(text="💎 5 GRAM — 600 ₽", callback_data="prod_crypto_ton_5")],
+            [InlineKeyboardButton(text="💎 7 GRAM — 840 ₽", callback_data="prod_crypto_ton_7")],
+            [InlineKeyboardButton(text="💎 10 GRAM — 1200 ₽", callback_data="prod_crypto_ton_10")],
             [InlineKeyboardButton(text="✍️ Указать своё количество", callback_data="custom_crypto_amount")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -2227,11 +2227,11 @@ async def select_crypto_network(callback: CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐", callback_data="prod_crypto_usdt_1")],
-            [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 340 ₽", callback_data="prod_crypto_usdt_3")],
-            [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 560 ₽", callback_data="prod_crypto_usdt_5")],
-            [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 780 ₽", callback_data="prod_crypto_usdt_7")],
-            [InlineKeyboardButton(text="💲 10 USDT — 750 ⭐ / 1110 ₽", callback_data="prod_crypto_usdt_10")],
+            [InlineKeyboardButton(text="💲 1 USDT — 78 ⭐ / 94 ₽", callback_data="prod_crypto_usdt_1")],
+            [InlineKeyboardButton(text="💲 3 USDT — 234 ⭐ / 282 ₽", callback_data="prod_crypto_usdt_3")],
+            [InlineKeyboardButton(text="💲 5 USDT — 385 ⭐ / 470 ₽", callback_data="prod_crypto_usdt_5")],
+            [InlineKeyboardButton(text="💲 7 USDT — 532 ⭐ / 658 ₽", callback_data="prod_crypto_usdt_7")],
+            [InlineKeyboardButton(text="💲 10 USDT — 750 ⭐ / 940 ₽", callback_data="prod_crypto_usdt_10")],
             [InlineKeyboardButton(text="🔄 Обменять GRAM на USDT", callback_data="exchange_gram_to_stable")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="crypto_back")],
         ]
@@ -2335,8 +2335,8 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
       or (rub_price >= 100 and prod_key not in ("prod_crypto_usdt_1", "prod_stars_50", "prod_crypto_ton_1"))
   )
 
-  # 1. Генерируем оплату по СБП / РФ через Lava.top (или NicePay / PaySync) для криптовалюты
-  sbp_provider_label = "СБП / Карта (Lava.top)" if is_lava_configured() else ("СБП / Карта (NicePay)" if is_nicepay_configured() else "СБП (PaySync)")
+  # 1. Генерируем оплату картой РФ (МИР) через Lava.top (или NicePay / PaySync) для криптовалюты
+  sbp_provider_label = "Карта РФ МИР (Lava.top)" if is_lava_configured() else ("СБП / Карта (NicePay)" if is_nicepay_configured() else "Карта РФ (PaySync)")
   if supports_sbp_crypto:
     customer_hint = f"@{callback.from_user.username}" if callback.from_user.username else f"tg_{callback.from_user.id}@gumstars.bot"
     paysync_res = await create_paysync_invoice(
@@ -2350,7 +2350,7 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
     if paysync_res.get("ok") and (paysync_res.get("url") or paysync_res.get("card_number")):
       paysync_id = str(paysync_res.get("invoice_id"))
       if paysync_res.get("provider") == "lava":
-        sbp_provider_label = "СБП / Карта (Lava.top)"
+        sbp_provider_label = "Карта РФ МИР (Lava.top)"
       elif paysync_res.get("provider") == "nicepay":
         sbp_provider_label = "СБП / Карта (NicePay)"
       PAYSYNC_PENDING_ORDERS[paysync_id] = {
@@ -2373,11 +2373,11 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
       )
       asyncio.create_task(poll_paysync_payment_task(callback.bot, paysync_id, callback.from_user))
       if paysync_res.get("url"):
-        btn_title = f"🇷🇺 Оплатить СБП / Картой ({rub_price} ₽)" if paysync_res.get("provider") in ("lava", "nicepay") else f"🇷🇺 Оплатить по СБП ({rub_price} ₽)"
+        btn_title = f"🇷🇺 Оплатить картой РФ МИР ({rub_price} ₽)" if paysync_res.get("provider") in ("lava", "nicepay") else f"🇷🇺 Оплатить картой РФ ({rub_price} ₽)"
         buttons.append([InlineKeyboardButton(text=btn_title, url=paysync_res["url"])])
       else:
         holder_part = f" ({paysync_res['card_holder']})" if paysync_res.get("card_holder") else ""
-        paysync_card_note = f"\n💳 <b>Перевод по карте РФ ({paysync_res.get('bank', 'Банк РФ')}):</b> <code>{paysync_res['card_number']}</code>{holder_part}\n⚠️ <i>Переведите ровно <b>{rub_price} ₽</b> и нажмите «Проверить оплату СБП».</i>\n"
+        paysync_card_note = f"\n💳 <b>Перевод по карте РФ ({paysync_res.get('bank', 'Банк РФ')}):</b> <code>{paysync_res['card_number']}</code>{holder_part}\n⚠️ <i>Переведите ровно <b>{rub_price} ₽</b> и нажмите «Проверить оплату».</i>\n"
       buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату", callback_data=f"chk_psync_{paysync_id}")])
 
   # 2. Кнопка оплаты Telegram Stars (для USDT)
@@ -2422,10 +2422,10 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           f"🌐 Сеть: <b>{network}</b>\n"
           f"👤 Получатель: <code>{target_user}</code>\n"
           "💰 <b>Стоимость к оплате:</b>\n"
-          f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+          f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b>\n"
           f"• <b>Stars:</b> <b>{product_info.get('stars', 78)} ⭐</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• <b>🇷🇺 СБП</b> картой любого банка РФ\n"
+          "• <b>🇷🇺 Карта РФ (МИР)</b> — оплата картой любого российского банка\n"
           "• <b>⭐ Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -2436,10 +2436,10 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           f"🌐 Сеть: <b>{network}</b>\n"
           f"👤 Получатель: <code>{target_user}</code>\n"
           "💰 <b>Стоимость к оплате:</b>\n"
-          f"• <b>По СБП:</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
+          f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
           f"• <b>Stars:</b> <b>{product_info.get('stars', 78)} ⭐</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• <b>🇷🇺 СБП</b> картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• <b>🇷🇺 Карта РФ (МИР)</b> — оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
           "• <b>⭐ Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -2465,10 +2465,10 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           f"🌐 Сеть: <b>{network}</b>\n"
           f"👤 Получатель: <code>{target_user}</code>\n"
           "💰 <b>Стоимость к оплате:</b>\n"
-          f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+          f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b>\n"
           f"• <b>Cryptobot:</b> <b>{crypto_line}</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• <b>🇷🇺 СБП</b> картой любого банка РФ\n"
+          "• <b>🇷🇺 Карта РФ (МИР)</b> — оплата картой любого российского банка\n"
           "• <b>💎 CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -2479,10 +2479,10 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           f"🌐 Сеть: <b>{network}</b>\n"
           f"👤 Получатель: <code>{target_user}</code>\n"
           "💰 <b>Стоимость к оплате:</b>\n"
-          f"• <b>По СБП:</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
+          f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
           f"• <b>Cryptobot:</b> <b>{crypto_line}</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• <b>🇷🇺 СБП</b> картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• <b>🇷🇺 Карта РФ (МИР)</b> — оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
           "• <b>💎 CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3089,13 +3089,13 @@ async def show_products(message: Message | CallbackQuery, state: FSMContext):
   if category == "stars":
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="⭐ 50 звёзд — 70 ₽", callback_data="prod_stars_50")],
-            [InlineKeyboardButton(text="⭐ 100 звёзд — 140 ₽ / 184 ₽", callback_data="prod_stars_100")],
-            [InlineKeyboardButton(text="⭐ 150 звёзд — 210 ₽ / 273 ₽", callback_data="prod_stars_150")],
-            [InlineKeyboardButton(text="⭐ 250 звёзд — 350 ₽ / 449 ₽", callback_data="prod_stars_250")],
-            [InlineKeyboardButton(text="⭐ 500 звёзд — 700 ₽ / 889 ₽", callback_data="prod_stars_500")],
-            [InlineKeyboardButton(text="⭐ 1000 звёзд — 1400 ₽ / 1769 ₽", callback_data="prod_stars_1000")],
-            [InlineKeyboardButton(text="⭐ 2500 звёзд — 3500 ₽ / 4399 ₽", callback_data="prod_stars_2500")],
+            [InlineKeyboardButton(text="⭐ 50 звёзд — 70 ₽ / 78 ₽", callback_data="prod_stars_50")],
+            [InlineKeyboardButton(text="⭐ 100 звёзд — 140 ₽ / 156 ₽", callback_data="prod_stars_100")],
+            [InlineKeyboardButton(text="⭐ 150 звёзд — 210 ₽ / 234 ₽", callback_data="prod_stars_150")],
+            [InlineKeyboardButton(text="⭐ 250 звёзд — 350 ₽ / 390 ₽", callback_data="prod_stars_250")],
+            [InlineKeyboardButton(text="⭐ 500 звёзд — 700 ₽ / 780 ₽", callback_data="prod_stars_500")],
+            [InlineKeyboardButton(text="⭐ 1000 звёзд — 1400 ₽ / 1560 ₽", callback_data="prod_stars_1000")],
+            [InlineKeyboardButton(text="⭐ 2500 звёзд — 3500 ₽ / 3900 ₽", callback_data="prod_stars_2500")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
@@ -3103,9 +3103,9 @@ async def show_products(message: Message | CallbackQuery, state: FSMContext):
   else:
     kb = InlineKeyboardMarkup(
         inline_keyboard=[
-            [InlineKeyboardButton(text="💎 3 месяца — 14.39 USDT / 1399 ₽", callback_data="prod_prem_3")],
-            [InlineKeyboardButton(text="💎 6 месяцев — 19.25 USDT / 1859 ₽", callback_data="prod_prem_6")],
-            [InlineKeyboardButton(text="💎 12 месяцев — 34.95 USDT / 3359 ₽", callback_data="prod_prem_12")],
+            [InlineKeyboardButton(text="💎 3 месяца — 14.39 USDT / 1250 ₽", callback_data="prod_prem_3")],
+            [InlineKeyboardButton(text="💎 6 месяцев — 19.25 USDT / 1690 ₽", callback_data="prod_prem_6")],
+            [InlineKeyboardButton(text="💎 12 месяцев — 34.95 USDT / 2900 ₽", callback_data="prod_prem_12")],
             [InlineKeyboardButton(text="🔙 Назад", callback_data="menu_stars")],
         ]
     )
@@ -3159,8 +3159,8 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   paysync_id = None
   paysync_card_note = ""
 
-  # 2. СБП / Карты (Lava.top -> NicePay -> резервный PaySync)
-  sbp_provider_label = "СБП / Карта (Lava.top)" if is_lava_configured() else ("СБП / Карта (NicePay)" if is_nicepay_configured() else "СБП (PaySync)")
+  # 2. Карта РФ (МИР) (Lava.top -> NicePay -> резервный PaySync)
+  sbp_provider_label = "Карта РФ МИР (Lava.top)" if is_lava_configured() else ("СБП / Карта (NicePay)" if is_nicepay_configured() else "Карта РФ (PaySync)")
   if supports_sbp:
     customer_hint = f"@{callback.from_user.username}" if callback.from_user.username else f"tg_{callback.from_user.id}@gumstars.bot"
     paysync_res = await create_paysync_invoice(
@@ -3174,7 +3174,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     if paysync_res.get("ok") and (paysync_res.get("url") or paysync_res.get("card_number")):
       paysync_id = str(paysync_res.get("invoice_id"))
       if paysync_res.get("provider") == "lava":
-        sbp_provider_label = "СБП / Карта (Lava.top)"
+        sbp_provider_label = "Карта РФ МИР (Lava.top)"
       elif paysync_res.get("provider") == "nicepay":
         sbp_provider_label = "СБП / Карта (NicePay)"
       PAYSYNC_PENDING_ORDERS[paysync_id] = {
@@ -3197,11 +3197,11 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
       )
       asyncio.create_task(poll_paysync_payment_task(callback.bot, paysync_id, callback.from_user))
       if paysync_res.get("url"):
-        btn_title = f"🇷🇺 Оплатить СБП / Картой ({rub_price} ₽)" if paysync_res.get("provider") in ("lava", "nicepay") else f"🇷🇺 Оплатить по СБП ({rub_price} ₽)"
+        btn_title = f"🇷🇺 Оплатить картой РФ МИР ({rub_price} ₽)" if paysync_res.get("provider") in ("lava", "nicepay") else f"🇷🇺 Оплатить картой РФ ({rub_price} ₽)"
         buttons.append([InlineKeyboardButton(text=btn_title, url=paysync_res["url"])])
       else:
         holder_part = f" ({paysync_res['card_holder']})" if paysync_res.get("card_holder") else ""
-        paysync_card_note = f"\n💳 <b>Перевод по карте РФ ({paysync_res.get('bank', 'Банк РФ')}):</b> <code>{paysync_res['card_number']}</code>{holder_part}\n⚠️ <i>Переведите ровно <b>{rub_price} ₽</b> и нажмите «Проверить оплату СБП».</i>\n"
+        paysync_card_note = f"\n💳 <b>Перевод по карте РФ ({paysync_res.get('bank', 'Банк РФ')}):</b> <code>{paysync_res['card_number']}</code>{holder_part}\n⚠️ <i>Переведите ровно <b>{rub_price} ₽</b> и нажмите «Проверить оплату».</i>\n"
       buttons.append([InlineKeyboardButton(text="🔄 Проверить оплату", callback_data=f"chk_psync_{paysync_id}")])
 
   # Кнопки CryptoBot
@@ -3245,10 +3245,10 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"📦 Товар: <b>{product_info['title']}</b>\n"
           f"👤 Получатель: <code>{target_user}</code>\n\n"
           "💰 <b>Стоимость к оплате:</b>\n"
-          f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+          f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b>\n"
           f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 СБП картой любого банка РФ\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3258,10 +3258,10 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"📦 Товар: <b>{product_info['title']}</b>\n"
           f"👤 Получатель: <code>{target_user}</code>\n\n"
           "💰 <b>Стоимость к оплате:</b>\n"
-          f"• <b>По СБП:</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
+          f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
           f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 СБП картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3286,10 +3286,10 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"📦 Подписка: <b>{duration_str}</b>\n"
           f"👤 Получатель: <code>{target_user}</code>\n\n"
           "💰 <b>Стоимость к оплате:</b>\n"
-          f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+          f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b>\n"
           f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 СБП картой любого банка РФ\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3299,10 +3299,10 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"📦 Подписка: <b>{duration_str}</b>\n"
           f"👤 Получатель: <code>{target_user}</code>\n\n"
           "💰 <b>Стоимость к оплате:</b>\n"
-          f"• <b>По СБП:</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
+          f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
           f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 СБП картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3324,10 +3324,10 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"📦 Товар: <b>{product_info['title']}</b>\n"
           f"👤 Получатель: <code>{target_user}</code>\n\n"
           "💰 <b>Стоимость к оплате:</b>\n"
-          f"• <b>По СБП:</b> <b>{rub_price} ₽</b>\n"
+          f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b>\n"
           f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 СБП картой любого банка РФ\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3337,10 +3337,10 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"📦 Товар: <b>{product_info['title']}</b>\n"
           f"👤 Получатель: <code>{target_user}</code>\n\n"
           "💰 <b>Стоимость к оплате:</b>\n"
-          f"• <b>По СБП:</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
+          f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
           f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 СБП картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3431,7 +3431,7 @@ async def process_successful_paysync_payment(bot_obj: Bot, invoice_id: str, buye
         is_sbp_fulfilled = False
         is_lava_order = inv_key.startswith("LV_") or pending.get("provider") == "lava"
         is_nicepay_order = inv_key.startswith("NP_") or pending.get("provider") == "nicepay"
-        provider_display = "СБП / Карта (Lava.top)" if is_lava_order else ("СБП / Карта (NicePay)" if is_nicepay_order else "СБП (PaySync)")
+        provider_display = "Карта РФ МИР (Lava.top)" if is_lava_order else ("СБП / Карта (NicePay)" if is_nicepay_order else "Карта РФ (PaySync)")
 
         # 1. Автоматическая доставка Stars через Gramix API
         if prod_key.startswith("prod_stars_"):
@@ -3630,9 +3630,9 @@ async def check_paysync_payment_callback(callback: CallbackQuery):
         await callback.answer("✅ Оплата успешно получена!", show_alert=True)
     else:
         msg_wait = (
-            "⏳ Оплата ещё не поступила. Оплатите счёт по ссылке (СБП или картой) — после оплаты бот сам сразу выдаст заказ, либо нажмите кнопку снова через пару секунд."
+            "⏳ Оплата ещё не поступила. Оплатите счёт по ссылке картой РФ (МИР) — после оплаты бот сам сразу выдаст заказ, либо нажмите кнопку снова через пару секунд."
             if (str(invoice_id).startswith("NP_") or str(invoice_id).startswith("LV_"))
-            else "⏳ Счет еще не оплачен. Оплатите через СБП в приложении вашего банка и нажмите кнопку снова."
+            else "⏳ Счет еще не оплачен. Оплатите счёт картой РФ и нажмите кнопку снова."
         )
         await callback.answer(msg_wait, show_alert=True)
 
