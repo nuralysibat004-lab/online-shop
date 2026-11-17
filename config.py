@@ -29,4 +29,9 @@ NICEPAY_SECRET_KEY = (os.getenv("NICEPAY_SECRET_KEY") or os.getenv("NICEPAY_SECR
 NICEPAY_SUCCESS_URL = os.getenv("NICEPAY_SUCCESS_URL", "https://t.me/GumStars_bot").strip()
 NICEPAY_FAIL_URL = os.getenv("NICEPAY_FAIL_URL", "https://t.me/GumStars_bot").strip()
 
+# Lava.top (СБП и карты РФ от 50 ₽, ~8%)
+LAVA_API_KEY = os.getenv("LAVA_API_KEY", "").strip()
+LAVA_OFFER_ID = os.getenv("LAVA_OFFER_ID", "").strip()
+LAVA_WEBHOOK_KEY = (os.getenv("LAVA_WEBHOOK_KEY") or os.getenv("LAVA_WEBHOOK_SECRET") or LAVA_API_KEY).strip()
+
 PORT = int(os.getenv("PORT", 8080))

@@ -43,6 +43,9 @@ from config import (
     NICEPAY_SECRET_KEY,
     NICEPAY_SUCCESS_URL,
     NICEPAY_FAIL_URL,
+    LAVA_API_KEY,
+    LAVA_OFFER_ID,
+    LAVA_WEBHOOK_KEY,
 )
 from db import BotDB
 
@@ -87,10 +90,175 @@ bot_db = BotDB(DATABASE)
 PAYSYNC_PENDING_ORDERS = {}
 CRYSTAL_PENDING_ORDERS = PAYSYNC_PENDING_ORDERS
 ORDER_PROCESS_LOCKS: dict[str, asyncio.Lock] = {}
+_CACHED_LAVA_OFFER_ID: str = ""
+
+
+def is_lava_configured() -> bool:
+    return bool(LAVA_API_KEY)
 
 
 def is_nicepay_configured() -> bool:
     return bool(NICEPAY_MERCHANT_ID and NICEPAY_SECRET_KEY)
+
+
+async def _resolve_lava_offer_id(session: aiohttp.ClientSession) -> str:
+    """Возвращает offerId продукта Lava.top (из env или автоматически через API)"""
+    global _CACHED_LAVA_OFFER_ID
+    if LAVA_OFFER_ID:
+        return LAVA_OFFER_ID
+    if _CACHED_LAVA_OFFER_ID:
+        return _CACHED_LAVA_OFFER_ID
+
+    headers = {"X-Api-Key": LAVA_API_KEY, "Accept": "application/json"}
+    for visibility in ("ALL", "ONLY_HIDDEN"):
+        try:
+            url = f"https://gate.lava.top/api/v2/products?feedVisibility={visibility}"
+            async with session.get(url, headers=headers, timeout=12) as resp:
+                if resp.status != 200:
+                    continue
+                data = await resp.json(content_type=None)
+                items = data.get("items") or data.get("data") or []
+                for prod in items:
+                    if not isinstance(prod, dict):
+                        continue
+                    offers = prod.get("offers") or []
+                    for off in offers:
+                        if isinstance(off, dict):
+                            oid = str(off.get("id") or off.get("offerId") or "").strip()
+                            if oid:
+                                _CACHED_LAVA_OFFER_ID = oid
+                                logger.info(f"Lava.top auto-detected offerId: {oid}")
+                                return oid
+        except Exception as e:
+            logger.warning(f"Lava.top products lookup ({visibility}) error: {e}")
+    return ""
+
+
+async def create_lava_invoice(
+    amount: float,
+    description: str,
+    user_id: int = 0,
+    customer_label: str = "",
+) -> dict:
+    """Создание ссылки на оплату через Lava.top API v3 (СБП и карты РФ от 50 ₽)"""
+    if not is_lava_configured():
+        return {"ok": False, "error": "LAVA_API_KEY not configured"}
+
+    amt_rub = max(50, int(round(float(amount))))
+    raw_label = str(customer_label or "").strip()
+    if "@" in raw_label and "." in raw_label.split("@")[-1] and not raw_label.startswith("@"):
+        buyer_email = raw_label[:80]
+    else:
+        buyer_email = f"tg{user_id or random.randint(10000, 99999)}@gumstars.bot"
+
+    headers = {
+        "X-Api-Key": LAVA_API_KEY,
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+    }
+
+    try:
+        async with aiohttp.ClientSession() as session:
+            offer_id = await _resolve_lava_offer_id(session)
+            if not offer_id:
+                logger.error("Lava.top: не найден offerId! Создайте цифровой продукт на lava.top с 'Цена по запросу через API' или задайте LAVA_OFFER_ID.")
+                return {"ok": False, "error": "Нет продукта Lava.top (offerId)"}
+
+            payload = {
+                "email": buyer_email,
+                "offerId": offer_id,
+                "currency": "RUB",
+                "amount": amt_rub,
+                "buyerLanguage": "RU",
+            }
+            async with session.post(
+                "https://gate.lava.top/api/v3/invoice",
+                json=payload,
+                headers=headers,
+                timeout=15,
+            ) as resp:
+                data = await resp.json(content_type=None)
+                inner = data.get("data") if isinstance(data, dict) and isinstance(data.get("data"), dict) else data
+                if isinstance(inner, dict):
+                    contract_id = str(inner.get("id") or inner.get("contractId") or "").strip()
+                    pay_url = str(inner.get("paymentUrl") or "").strip()
+                    if contract_id and pay_url:
+                        inv_id = f"LV_{contract_id}"
+                        logger.info(f"Lava.top invoice created: id={inv_id}, amount={amt_rub} RUB")
+                        return {
+                            "ok": True,
+                            "provider": "lava",
+                            "invoice_id": inv_id,
+                            "payment_id": contract_id,
+                            "url": pay_url,
+                            "amount": amt_rub,
+                            "raw": inner,
+                        }
+                logger.error(f"Lava.top create invoice error (HTTP {resp.status}): {data}")
+                return {"ok": False, "error": f"Lava.top HTTP {resp.status}"}
+    except Exception as e:
+        logger.error(f"Lava.top request exception: {e}")
+        return {"ok": False, "error": str(e)}
+
+
+async def handle_lava_webhook(bot_obj: Bot, body_json: dict, headers: dict) -> tuple[int, dict]:
+    """Обработчик входящих POST-вебхуков от Lava.top"""
+    if not is_lava_configured():
+        return 503, {"error": "Lava.top not configured"}
+
+    incoming_key = ""
+    for k, v in (headers or {}).items():
+        if k.lower() == "x-api-key":
+            incoming_key = str(v or "").strip()
+            break
+
+    allowed_keys = [k for k in (LAVA_WEBHOOK_KEY, LAVA_API_KEY) if k]
+    if allowed_keys and (not incoming_key or not any(hmac.compare_digest(incoming_key, ak) for ak in allowed_keys)):
+        logger.warning("Lava.top webhook X-Api-Key mismatch")
+        return 403, {"error": "Invalid X-Api-Key"}
+
+    if not isinstance(body_json, dict):
+        return 400, {"error": "Invalid JSON"}
+
+    event = str(body_json.get("event") or body_json.get("eventType") or "").strip().lower()
+    status = str(body_json.get("status") or "").strip().lower()
+    contract_id = str(body_json.get("contractId") or body_json.get("id") or "").strip()
+
+    is_success = (
+        event in ("payment.success", "subscription.recurring.payment.success")
+        or status in ("success", "completed", "paid", "subscription-active")
+    )
+    if is_success and contract_id:
+        inv_key = contract_id if contract_id.startswith("LV_") else f"LV_{contract_id}"
+        bot_db.mark_order_meta_paid(inv_key, contract_id)
+        pending = PAYSYNC_PENDING_ORDERS.setdefault(inv_key, {})
+        pending["is_paid"] = True
+        pending["provider"] = "lava"
+        pending["payment_id"] = contract_id
+
+        meta = bot_db.get_order_meta(inv_key) or {}
+        if not pending.get("prod_key") and meta.get("prod_key"):
+            pending["prod_key"] = meta["prod_key"]
+        if not pending.get("target_user") and meta.get("target_user"):
+            pending["target_user"] = meta["target_user"]
+        if not pending.get("rub_price") and meta.get("rub_price"):
+            pending["rub_price"] = meta["rub_price"]
+        if not pending.get("user_id") and meta.get("user_id"):
+            pending["user_id"] = meta["user_id"]
+
+        buyer_id = pending.get("user_id") or meta.get("user_id") or 0
+        username = meta.get("username") or pending.get("username") or ""
+        buyer_stub = SimpleNamespace(
+            id=int(buyer_id) if buyer_id else None,
+            username=username or None,
+            first_name="Клиент",
+        )
+        logger.info(f"Lava.top webhook SUCCESS: contract_id={contract_id}, user_id={buyer_id}")
+        asyncio.create_task(process_successful_paysync_payment(bot_obj, inv_key, buyer_stub, pending))
+        return 200, {"ok": True}
+
+    logger.info(f"Lava.top webhook ignored/non-success: event={event}, status={status}, contract_id={contract_id}")
+    return 200, {"ok": True}
 
 
 def verify_nicepay_hash(params: dict, secret_key: str) -> bool:
@@ -234,7 +402,15 @@ async def create_paysync_invoice(
     user_id: int = 0,
     customer_label: str = "",
 ) -> dict:
-    """Создание оплаты СБП/картой РФ: приоритетно через NicePay, иначе резервный PaySync H2H"""
+    """Создание оплаты СБП/картой РФ: приоритетно Lava.top -> NicePay -> резервный PaySync"""
+    if is_lava_configured():
+        return await create_lava_invoice(
+            amount=amount,
+            description=description,
+            user_id=user_id,
+            customer_label=customer_label,
+        )
+
     if is_nicepay_configured():
         return await create_nicepay_invoice(
             amount=amount,
@@ -312,6 +488,33 @@ async def check_paysync_invoice(invoice_id: str) -> dict:
 
     if not inv_str:
         return {"ok": False, "is_paid": False}
+
+    # Для Lava.top проверяем БД/вебхук + официальный GET /api/v2/invoices/{id}
+    if inv_str.startswith("LV_"):
+        meta = bot_db.get_order_meta(inv_str)
+        if meta and meta.get("paid"):
+            return {"ok": True, "is_paid": True, "meta": meta}
+        if bot_db.get_transaction_status(inv_str) == "completed":
+            return {"ok": True, "is_paid": True}
+        if is_lava_configured():
+            contract_id = inv_str[3:]
+            try:
+                async with aiohttp.ClientSession() as session:
+                    async with session.get(
+                        f"https://gate.lava.top/api/v2/invoices/{contract_id}",
+                        headers={"X-Api-Key": LAVA_API_KEY, "Accept": "application/json"},
+                        timeout=10,
+                    ) as resp:
+                        if resp.status == 200:
+                            ldata = await resp.json(content_type=None)
+                            linner = ldata.get("data") if isinstance(ldata, dict) and isinstance(ldata.get("data"), dict) else ldata
+                            st = str((linner or {}).get("status") or "").strip().lower()
+                            if st in ("completed", "success", "paid", "subscription-active"):
+                                bot_db.mark_order_meta_paid(inv_str, contract_id)
+                                return {"ok": True, "is_paid": True, "data": linner}
+            except Exception as e:
+                logger.warning(f"Lava.top invoice check error ({inv_str}): {e}")
+        return {"ok": True, "is_paid": False}
 
     # Для NicePay статус приходит через GET-обработчик /nicepay/webhook и сохраняется в БД
     if inv_str.startswith("NP_"):
@@ -2127,10 +2330,13 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
   buttons = []
   paysync_id = None
   paysync_card_note = ""
-  supports_sbp_crypto = (rub_price >= 100 and prod_key not in ("prod_crypto_usdt_1", "prod_stars_50", "prod_crypto_ton_1"))
+  supports_sbp_crypto = (
+      (is_lava_configured() and rub_price >= 50)
+      or (rub_price >= 100 and prod_key not in ("prod_crypto_usdt_1", "prod_stars_50", "prod_crypto_ton_1"))
+  )
 
-  # 1. Генерируем оплату по СБП / РФ через NicePay (или резервный PaySync) для криптовалюты
-  sbp_provider_label = "СБП / Карта (NicePay)" if is_nicepay_configured() else "СБП (PaySync)"
+  # 1. Генерируем оплату по СБП / РФ через Lava.top (или NicePay / PaySync) для криптовалюты
+  sbp_provider_label = "СБП / Карта (Lava.top)" if is_lava_configured() else ("СБП / Карта (NicePay)" if is_nicepay_configured() else "СБП (PaySync)")
   if supports_sbp_crypto:
     customer_hint = f"@{callback.from_user.username}" if callback.from_user.username else f"tg_{callback.from_user.id}@gumstars.bot"
     paysync_res = await create_paysync_invoice(
@@ -2143,7 +2349,9 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
     )
     if paysync_res.get("ok") and (paysync_res.get("url") or paysync_res.get("card_number")):
       paysync_id = str(paysync_res.get("invoice_id"))
-      if paysync_res.get("provider") == "nicepay":
+      if paysync_res.get("provider") == "lava":
+        sbp_provider_label = "СБП / Карта (Lava.top)"
+      elif paysync_res.get("provider") == "nicepay":
         sbp_provider_label = "СБП / Карта (NicePay)"
       PAYSYNC_PENDING_ORDERS[paysync_id] = {
           "prod_key": prod_key,
@@ -2165,7 +2373,7 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
       )
       asyncio.create_task(poll_paysync_payment_task(callback.bot, paysync_id, callback.from_user))
       if paysync_res.get("url"):
-        btn_title = f"🇷🇺 Оплатить СБП / Картой ({rub_price} ₽)" if paysync_res.get("provider") == "nicepay" else f"🇷🇺 Оплатить по СБП ({rub_price} ₽)"
+        btn_title = f"🇷🇺 Оплатить СБП / Картой ({rub_price} ₽)" if paysync_res.get("provider") in ("lava", "nicepay") else f"🇷🇺 Оплатить по СБП ({rub_price} ₽)"
         buttons.append([InlineKeyboardButton(text=btn_title, url=paysync_res["url"])])
       else:
         holder_part = f" ({paysync_res['card_holder']})" if paysync_res.get("card_holder") else ""
@@ -2927,7 +3135,10 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   crypto_rub = product_info.get("crypto_rub") or int(round(usdt_amount * 81))
 
   is_crypto = product_info.get("type") in ("crypto", "crypto_native_stars")
-  supports_sbp = (product_key not in ("prod_stars_50", "prod_crypto_usdt_1", "prod_crypto_ton_1") and rub_price >= 100)
+  supports_sbp = (
+      (is_lava_configured() and rub_price >= 50)
+      or (product_key not in ("prod_stars_50", "prod_crypto_usdt_1", "prod_crypto_ton_1") and rub_price >= 100)
+  )
 
   # 1. Формируем счет CryptoBot (USDT)
   cryptobot_url = None
@@ -2948,8 +3159,8 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
   paysync_id = None
   paysync_card_note = ""
 
-  # 2. СБП / Карты (NicePay или резервный PaySync)
-  sbp_provider_label = "СБП / Карта (NicePay)" if is_nicepay_configured() else "СБП (PaySync)"
+  # 2. СБП / Карты (Lava.top -> NicePay -> резервный PaySync)
+  sbp_provider_label = "СБП / Карта (Lava.top)" if is_lava_configured() else ("СБП / Карта (NicePay)" if is_nicepay_configured() else "СБП (PaySync)")
   if supports_sbp:
     customer_hint = f"@{callback.from_user.username}" if callback.from_user.username else f"tg_{callback.from_user.id}@gumstars.bot"
     paysync_res = await create_paysync_invoice(
@@ -2962,7 +3173,9 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
     )
     if paysync_res.get("ok") and (paysync_res.get("url") or paysync_res.get("card_number")):
       paysync_id = str(paysync_res.get("invoice_id"))
-      if paysync_res.get("provider") == "nicepay":
+      if paysync_res.get("provider") == "lava":
+        sbp_provider_label = "СБП / Карта (Lava.top)"
+      elif paysync_res.get("provider") == "nicepay":
         sbp_provider_label = "СБП / Карта (NicePay)"
       PAYSYNC_PENDING_ORDERS[paysync_id] = {
           "prod_key": product_key,
@@ -2984,7 +3197,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
       )
       asyncio.create_task(poll_paysync_payment_task(callback.bot, paysync_id, callback.from_user))
       if paysync_res.get("url"):
-        btn_title = f"🇷🇺 Оплатить СБП / Картой ({rub_price} ₽)" if paysync_res.get("provider") == "nicepay" else f"🇷🇺 Оплатить по СБП ({rub_price} ₽)"
+        btn_title = f"🇷🇺 Оплатить СБП / Картой ({rub_price} ₽)" if paysync_res.get("provider") in ("lava", "nicepay") else f"🇷🇺 Оплатить по СБП ({rub_price} ₽)"
         buttons.append([InlineKeyboardButton(text=btn_title, url=paysync_res["url"])])
       else:
         holder_part = f" ({paysync_res['card_holder']})" if paysync_res.get("card_holder") else ""
@@ -3216,8 +3429,9 @@ async def process_successful_paysync_payment(bot_obj: Bot, invoice_id: str, buye
         rub_price = product_info["amount"] or pending.get("rub_price", 0)
         buyer_id = getattr(buyer, "id", None) or pending.get("user_id")
         is_sbp_fulfilled = False
+        is_lava_order = inv_key.startswith("LV_") or pending.get("provider") == "lava"
         is_nicepay_order = inv_key.startswith("NP_") or pending.get("provider") == "nicepay"
-        provider_display = "СБП / Карта (NicePay)" if is_nicepay_order else "СБП (PaySync)"
+        provider_display = "СБП / Карта (Lava.top)" if is_lava_order else ("СБП / Карта (NicePay)" if is_nicepay_order else "СБП (PaySync)")
 
         # 1. Автоматическая доставка Stars через Gramix API
         if prod_key.startswith("prod_stars_"):
@@ -3417,7 +3631,7 @@ async def check_paysync_payment_callback(callback: CallbackQuery):
     else:
         msg_wait = (
             "⏳ Оплата ещё не поступила. Оплатите счёт по ссылке (СБП или картой) — после оплаты бот сам сразу выдаст заказ, либо нажмите кнопку снова через пару секунд."
-            if str(invoice_id).startswith("NP_")
+            if (str(invoice_id).startswith("NP_") or str(invoice_id).startswith("LV_"))
             else "⏳ Счет еще не оплачен. Оплатите через СБП в приложении вашего банка и нажмите кнопку снова."
         )
         await callback.answer(msg_wait, show_alert=True)
