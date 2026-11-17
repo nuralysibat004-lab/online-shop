@@ -16,11 +16,17 @@ CRYPTO_BOT_TOKEN = os.getenv("CRYPTO_BOT_TOKEN")
 FRAGMENT_API_KEY = os.getenv("FRAGMENT_API_KEY", "")
 REVIEW_CHANNEL_ID = os.getenv("REVIEW_CHANNEL_ID", "@GumNyam1")
 
-# PaySync / CrystalPAY (СБП & Карты РФ)
+# PaySync / CrystalPAY (резерв)
 PAYSYNC_LOGIN = os.getenv("PAYSYNC_LOGIN") or os.getenv("CRYSTAL_LOGIN") or os.getenv("CRYSTALPAY_LOGIN", "gumstarsshop")
 PAYSYNC_SECRET = os.getenv("PAYSYNC_SECRET") or os.getenv("PAYSYNC_SECRET_KEY") or os.getenv("CRYSTAL_SECRET") or os.getenv("CRYSTALPAY_SECRET", "")
 
 CRYSTAL_LOGIN = PAYSYNC_LOGIN
 CRYSTAL_SECRET = PAYSYNC_SECRET
+
+# NicePay (СБП, карты РФ, Kaspi и др.)
+NICEPAY_MERCHANT_ID = os.getenv("NICEPAY_MERCHANT_ID", "").strip()
+NICEPAY_SECRET_KEY = (os.getenv("NICEPAY_SECRET_KEY") or os.getenv("NICEPAY_SECRET", "")).strip()
+NICEPAY_SUCCESS_URL = os.getenv("NICEPAY_SUCCESS_URL", "https://t.me/GumStars_bot").strip()
+NICEPAY_FAIL_URL = os.getenv("NICEPAY_FAIL_URL", "https://t.me/GumStars_bot").strip()
 
 PORT = int(os.getenv("PORT", 8080))
