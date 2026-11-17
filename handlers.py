@@ -605,11 +605,11 @@ PRICES = {
     "prod_prem_3": {"amount": 1250, "crypto_rub": 1190, "usdt": 14.39, "title": "Telegram Premium (3 месяца)", "type": "premium", "months": 3},
     "prod_prem_6": {"amount": 1690, "crypto_rub": 1590, "usdt": 19.25, "title": "Telegram Premium (6 месяцев)", "type": "premium", "months": 6},
     "prod_prem_12": {"amount": 2900, "crypto_rub": 2890, "usdt": 34.95, "title": "Telegram Premium (12 месяцев)", "type": "premium", "months": 12},
-    "prod_crypto_ton_1": {"amount": 120, "crypto_rub": 120, "usdt": 1.50, "title": "1 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 1},
-    "prod_crypto_ton_3": {"amount": 360, "crypto_rub": 360, "usdt": 4.50, "title": "3 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 3},
-    "prod_crypto_ton_5": {"amount": 600, "crypto_rub": 600, "usdt": 7.50, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
-    "prod_crypto_ton_7": {"amount": 840, "crypto_rub": 840, "usdt": 10.50, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
-    "prod_crypto_ton_10": {"amount": 1200, "crypto_rub": 1200, "usdt": 15.00, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
+    "prod_crypto_ton_1": {"amount": 120, "crypto_rub": 120, "usdt": 1.47, "title": "1 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 1},
+    "prod_crypto_ton_3": {"amount": 360, "crypto_rub": 360, "usdt": 4.41, "title": "3 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 3},
+    "prod_crypto_ton_5": {"amount": 600, "crypto_rub": 600, "usdt": 7.35, "title": "5 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 5},
+    "prod_crypto_ton_7": {"amount": 840, "crypto_rub": 840, "usdt": 10.29, "title": "7 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 7},
+    "prod_crypto_ton_10": {"amount": 1200, "crypto_rub": 1200, "usdt": 14.70, "title": "10 GRAM (TON)", "type": "crypto", "coin": "GRAM", "qty": 10},
     "prod_crypto_usdt_1": {"amount": 94, "usdt": 1, "stars": 78, "title": "1 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 1},
     "prod_crypto_usdt_3": {"amount": 282, "usdt": 3, "stars": 234, "title": "3 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 3},
     "prod_crypto_usdt_5": {"amount": 470, "usdt": 5, "stars": 385, "title": "5 USDT", "type": "crypto_native_stars", "coin": "USDT", "qty": 5},
@@ -2425,8 +2425,8 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b>\n"
           f"• <b>Stars:</b> <b>{product_info.get('stars', 78)} ⭐</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• <b>🇷🇺 Карта РФ (МИР)</b> — оплата картой любого российского банка\n"
-          "• <b>⭐ Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> оплата картой любого банка РФ\n"
+          "• ⭐ <b>Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
     elif supports_sbp_crypto:
@@ -2439,8 +2439,8 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
           f"• <b>Stars:</b> <b>{product_info.get('stars', 78)} ⭐</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• <b>🇷🇺 Карта РФ (МИР)</b> — оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
-          "• <b>⭐ Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• ⭐ <b>Telegram Stars</b> моментальный обмен за звёзды Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
     else:
@@ -2466,10 +2466,10 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           f"👤 Получатель: <code>{target_user}</code>\n"
           "💰 <b>Стоимость к оплате:</b>\n"
           f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b>\n"
-          f"• <b>Cryptobot:</b> <b>{crypto_line}</b>\n\n"
+          f"• <b>CryptoBot:</b> <b>{crypto_line}</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• <b>🇷🇺 Карта РФ (МИР)</b> — оплата картой любого российского банка\n"
-          "• <b>💎 CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> оплата картой любого банка РФ\n"
+          "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
     elif supports_sbp_crypto:
@@ -2480,10 +2480,10 @@ async def process_crypto_product_selection(callback: CallbackQuery, state: FSMCo
           f"👤 Получатель: <code>{target_user}</code>\n"
           "💰 <b>Стоимость к оплате:</b>\n"
           f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
-          f"• <b>Cryptobot:</b> <b>{crypto_line}</b>\n\n"
+          f"• <b>CryptoBot:</b> <b>{crypto_line}</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• <b>🇷🇺 Карта РФ (МИР)</b> — оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
-          "• <b>💎 CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
     else:
@@ -3248,7 +3248,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b>\n"
           f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> оплата картой любого банка РФ\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3261,7 +3261,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
           f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3287,9 +3287,9 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"👤 Получатель: <code>{target_user}</code>\n\n"
           "💰 <b>Стоимость к оплате:</b>\n"
           f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b>\n"
-          f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+          f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> оплата картой любого банка РФ\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3300,9 +3300,9 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"👤 Получатель: <code>{target_user}</code>\n\n"
           "💰 <b>Стоимость к оплате:</b>\n"
           f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
-          f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+          f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3312,7 +3312,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"📦 Подписка: <b>{duration_str}</b>\n"
           f"👤 Получатель: <code>{target_user}</code>\n\n"
           "💰 <b>Стоимость к оплате:</b>\n"
-          f"• <b>Cryptobot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
+          f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способ оплаты:</b>\n"
           "• 💎 <b>CryptoBot</b> моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
@@ -3327,7 +3327,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b>\n"
           f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> оплата картой любого банка РФ\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
@@ -3340,7 +3340,7 @@ async def create_crypto_invoice(callback: CallbackQuery, state: FSMContext):
           f"• <b>Картой РФ (МИР):</b> <b>{rub_price} ₽</b> <i>(временно недоступно)</i>\n"
           f"• <b>CryptoBot:</b> <b>{usdt_amount} USDT ({crypto_rub} ₽)</b>\n\n"
           "<b>Способы оплаты:</b>\n"
-          "• 🇷🇺 <b>Карта РФ (МИР)</b> — оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
+          "• 🇷🇺 <b>Карта РФ (МИР)</b> оплата картой любого банка РФ <i>(техработы шлюза)</i>\n"
           "• 💎 CryptoBot моментально в USDT/TON прямо в Telegram\n\n"
           "<i>Если передумали нажмите кнопку \n«❌ Отменить заказ».</i>"
       )
